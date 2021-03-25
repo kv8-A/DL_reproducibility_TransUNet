@@ -1,8 +1,9 @@
 import torch.nn as nn
 
 """ 
-For reconstructung the UNet part, we look at the decoder structure defined in the paper.
-Ref code UNet: https://github.com/milesial/Pytorch-UNet
+For reconstructung the UNet part, we look at the decoder structure defined in the paper, and existing pytorch UNet implementations and paper.
+Ref UNet paper: https://arxiv.org/abs/1505.04597
+Ref UNet code: https://github.com/milesial/Pytorch-UNet
 
 We can see from the paper that the UNet architecture has:
     - 4 upsampling blocks
