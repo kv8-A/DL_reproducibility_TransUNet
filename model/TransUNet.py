@@ -126,10 +126,21 @@ class SegmentationHead(nn.Module):
 
         return x
 
+"""
+Reshapes the output of the encoder
+
+from (n_patch, D) -> (D, H/16, W/16) -> (512, H/16, W/16)
+"""
+class ReshapeBlock(nn.Module):
+    ...
+
 class TransUNet(nn.Module):
 
     def __init__(self):
         super().__init__()
+
+        # Reshape block
+        self.reshapeBlock = ReshapeBlock()
 
         """
         Decoder blocks according to paper:
@@ -164,8 +175,8 @@ class TransUNet(nn.Module):
 
         # Segmentation head
         self.segmentationHead = SegmentationHead(
-            in_channels=...,
-            out_channels=...
+            in_channels=16,
+            out_channels=... # 2 channels?
         )
     
     def forward(self, x):
@@ -173,7 +184,7 @@ class TransUNet(nn.Module):
         ...
 
         # Reshape
-        ...
+        x = self.reshapeBlock(x)
 
         # Decoder
         x = decoderBlock1(x, skip=...)
