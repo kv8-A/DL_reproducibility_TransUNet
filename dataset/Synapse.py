@@ -1,10 +1,6 @@
 import torch.utils.data as data
 
-# TODO This is just exemplary skeleton of the custom Dataset class. Read up the documentation on that
-# TODO and tailor it to your own needs.
-
-
-class YourDataset(data.Dataset):
+class Synapse(data.Dataset):
     """Dataset loader.
     Keyword arguments:
     - root_dir (``string``): Root directory path.

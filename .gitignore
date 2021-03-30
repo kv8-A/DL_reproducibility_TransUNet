@@ -4,4 +4,8 @@ env
 # Editor 
 .vscode
 
+# Temp files
 temp.py
+
+# Datasets
+dataset/Synapse/*

@@ -1,7 +1,27 @@
 """ 
+For reconstructing the ResNet-50 part
+Ref ResNet paper: https://arxiv.org/pdf/1512.03385.pdf [paper]
+
+The paper does not go in a lot of detail about the ResNet implementation
+apart from saying the 50 layer resnet is used, pretrained on ImageNet.
+Pytorch contains a pretrained ResNet-50 on ImageNet, which we can use.
+
+The skip connections from the paper are indicated to originate from the
+1/2, 1/4 and 1/8 resolution scales.
+
+======================================================================================
+
 For reconstructung the UNet part, we look at the decoder structure defined in the paper, and existing pytorch UNet implementations and paper.
-Ref UNet paper: https://arxiv.org/abs/1505.04597 # [paper]
-Ref UNet code: https://github.com/milesial/Pytorch-UNet # [self search for pytorch impl.]
+Ref UNet paper: https://arxiv.org/abs/1505.04597 [paper]
+Ref UNet code: https://github.com/milesial/Pytorch-UNet [self search for pytorch impl.]
+
+The paper mentions some dimensions chosen for the "base" model, being the one the experiments were performed on.
+- input res       = 224x224, has to be square
+- patch size P    = 16
+- hidden size D   = 12
+- nr of layers    = 768
+- MLP size        = 3072
+- number of heads = 12
 
 We can see from the paper that the UNet architecture has:
     - 4 upsampling blocks
@@ -23,6 +43,7 @@ as it is not discussed in the paper:
 import torch
 import torchvision
 import torch.nn as nn
+import numpy as np
 
 """
 Decoder block
@@ -71,7 +92,7 @@ class DecoderBlock(nn.Module):
 The segmentation head
 converts input back to final output image with segmented labels
 
-- conv : 16->2 | 1x1 # [UNet code]
+- conv : 16->2 | 1x1 [UNet]
 """
 class SegmentationHead(nn.Module):
 
@@ -82,7 +103,7 @@ class SegmentationHead(nn.Module):
         self.conv = nn.Conv2d(
             in_channels=in_channels,
             out_channels=out_channels,
-            kernel_size=1,
+            kernel_size=1, # NOTE: kernel size not mentioned in paper, assuming 1 from UNet ref code
             padding=0,
             stride=1
         )
@@ -93,23 +114,66 @@ class SegmentationHead(nn.Module):
         return x
 
 """
-Reshapes the output of the encoder
+Reshapes the output of the transformer encoder
+from (n_patch, D) -> (D, H/P, W/P) -> (512, H/P, W/P) [paper]
+This block includes the first 3x3 convolution
 
-from (n_patch, D) -> (D, H/16, W/16) -> (512, H/16, W/16)
+output of encoder is (N, n_patch, D) with N batch size, D hidden size
+input has to be square images, so H = W
+we know n_patch = HW/P^2 = H^2/P^2 => H/P = sqrt(n_patch)
+
+using a 1x1 convolution [paper]
 """
 class ReshapeBlock(nn.Module):
-    ...
+
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        # 3x3 Convolution
+        self.conv = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            padding=1,
+            stride=1
+        )
+        # ReLU activation
+        self.relu = nn.ReLU()
+    
+    def forward(self, x):
+        # Reshape
+        N, n_patch, D = x.size() # [paper Fig1]
+        h_P = int(np.sqrt(n_patch)) # H/P [paper 3.1]
+        x = x.view(N, h_P, h_P, D) # reshape using value for H/P (W/P = H/P)
+        x = x.permute(0, 2, 3, 1) # reorder dimensions according to [paper Fig1]
+        # NOTE: paper mentions a 1x1 conv? were does that fit?
+        # Conv
+        x = self.conv(x)
+        # ReLU
+        x = self.relu(x)
+
+        return x
 
 """
+TransUNet Network
 
+Consisting of hybrid CNN-Transformer encoder
+and UNet cascaded decoder with skip connections
+
+Network architectire derived from [paper Fig1]
 """
 class TransUNet(nn.Module):
 
     def __init__(self):
         super().__init__()
 
+        # Encoder blocks: ResNet-50
+
         # Reshape block
-        self.reshapeBlock = ReshapeBlock()
+        self.reshapeBlock = ReshapeBlock(
+            in_channels=..., # NOTE: isn't this D?
+            out_channels=512
+        )
 
         """
         Decoder block channels according to paper:
@@ -118,7 +182,7 @@ class TransUNet(nn.Module):
         - 256->128
         - 128->64 
         - 64->16
-        NOTE: what are the skip connection channels? Get it from Resnet output?
+        NOTE: what are the skip connection channels? Get it from Resnet output? Not clear form paper
         """
         # Decoder blocks
         self.decoderBlock1 = DecoderBlock(
@@ -145,7 +209,7 @@ class TransUNet(nn.Module):
         # Segmentation head
         self.segmentationHead = SegmentationHead(
             in_channels=16,
-            out_channels=3 # assumtopn that output is rgb
+            out_channels=3 # NOTE: assumption that output is rgb
         )
     
     def forward(self, x):
@@ -156,10 +220,10 @@ class TransUNet(nn.Module):
         x = self.reshapeBlock(x)
 
         # Decoder
-        x = decoderBlock1(x, skip=...)
-        x = decoderBlock2(x, skip=...)
-        x = decoderBlock3(x, skip=...)
-        x = decoderBlock4(x, skip=None)
+        x = self.decoderBlock1(x, skip=...)
+        x = self.decoderBlock2(x, skip=...)
+        x = self.decoderBlock3(x, skip=...)
+        x = self.decoderBlock4(x, skip=None)
         
         # Segmentation head
         x = self.segmentationHead(x)
