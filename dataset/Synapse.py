@@ -1,91 +1,54 @@
 import torch.utils.data as data
+from torchvision import transforms
+import glob
+import numpy as np
 
 class Synapse(data.Dataset):
     """Dataset loader.
-    Keyword arguments:
-    - root_dir (``string``): Root directory path.
-    - mode (``string``): The type of dataset: 'train' for training set, 'val'
-    for validation set, and 'test' for test set.
-    - transform (``callable``, optional): A function/transform that takes in
-    an PIL image and returns a transformed version of it. Default: None.
+    - root_dir (``string``): Data root directory path.
+    - mode (``string``): train or test
     """
 
-    def __init__(self,
-                 root_dir,
-                 mode='train',
-                 transforms=None,
-                 config=None):
-        self.root_dir = root_dir
+    def __init__(self, data_dir, mode):
+        # Data root dir
+        self.data_dir = data_dir
+        # Mode
         self.mode = mode
-        self.transforms = transforms
-        self.train_size = config['train_size']
-        self.val_size = config['val_size']
-        self.test_size = config['test_size']
-
+        # Transforms
+        """ Random roration and flipping as mentioned in [paper 4.2] """
+        self.transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.RandomRotation(degrees=90),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip()
+        ])
+        # Get the data filepaths
         if self.mode.lower() == 'train':
-            # Get the training data FILEPATHS (NOT THE IMAGES -> whole dataset might be too big to fit into memory)
-            self.train_data = ...
-
-            # Labels you can probably load all at once
-            self.train_labels = ...
-        elif self.mode.lower() == 'val':
-            # Get the validation data FILEPATHS (NOT THE IMAGES -> whole dataset might be too big to fit into memory)
-            self.val_data = ...
-
-            # Labels you can probably load all at once
-            self.val_labels = ...
-
+            self.data_list = [f for f in glob.glob(data_dir+'/*.npz')]
         elif self.mode.lower() == 'test':
-            # Get the test data FILEPATHS (NOT THE IMAGES -> whole dataset might be too big to fit into memory)
-            self.test_data = ...
-
-            # Labels you can probably load all at once
-            self.test_labels = ...
-        else:
-            raise RuntimeError("Unexpected dataset mode. "
-                               "Supported modes are: train, val")
+            self.data_list = [f for f in glob.glob(data_dir+'/*.npy.h5')]
 
     def __getitem__(self, i):
         """
-        Args:
         - index (``int``): index of the item in the dataset
-        Returns:
-        A tuple of ``PIL.Image`` (image, label) where label is the ground-truth
-        of the image.
         """
 
+        # Load the image at the filepath
         if self.mode.lower() == 'train':
-            # Load the image at the filepath
-            img = ...
-            label = ...
-        elif self.mode.lower() == 'val':
-            # Load the image at the filepath
-            img = ...
-            label = ...
-
+            data = np.load(self.data_list[i])
+            img = data['image']
+            label = data['label']
         elif self.mode.lower() == 'test':
             # Load the image at the filepath
             img = ...
             label = ...
-        else:
-            raise RuntimeError("Unexpected dataset mode. "
-                               "Supported modes are: train, val and test")
-
-        # Apply transformations if necessary
+        # Apply transformations
         if self.transforms is not None:
-            img = ...
+            img = self.transforms(img)
 
         return img, label
 
     def __len__(self):
         """Returns the length of the dataset."""
-        if self.mode.lower() == 'train':
-            return ...
-        elif self.mode.lower() == 'val':
-            return ...
-        elif self.mode.lower() == 'test':
-            return ...
-        else:
-            raise RuntimeError("Unexpected dataset mode. "
-                               "Supported modes are: train, val and test")
+        return len(self.data_list)
 

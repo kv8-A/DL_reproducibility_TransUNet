@@ -18,8 +18,8 @@ Ref UNet code: https://github.com/milesial/Pytorch-UNet [self search for pytorch
 The paper mentions some dimensions chosen for the "base" model, being the one the experiments were performed on.
 - input res       = 224x224, has to be square
 - patch size P    = 16
-- hidden size D   = 12
-- nr of layers    = 768
+- hidden size D   = 768    NOTE: is this a typo in [paper 4.4]? According to [paper Fig1] nr of layer = 12
+- nr of layers    = 12           so D = 768 (also makes more sense), but 4.4 has them switched
 - MLP size        = 3072
 - number of heads = 12
 
@@ -146,7 +146,6 @@ class ReshapeBlock(nn.Module):
         h_P = int(np.sqrt(n_patch)) # H/P [paper 3.1]
         x = x.view(N, h_P, h_P, D) # reshape using value for H/P (W/P = H/P)
         x = x.permute(0, 2, 3, 1) # reorder dimensions according to [paper Fig1]
-        # NOTE: paper mentions a 1x1 conv? were does that fit?
         # Conv
         x = self.conv(x)
         # ReLU
@@ -161,6 +160,14 @@ Consisting of hybrid CNN-Transformer encoder
 and UNet cascaded decoder with skip connections
 
 Network architectire derived from [paper Fig1]
+
+The paper mentions some dimensions chosen for the "base" model, being the one the experiments were performed on.
+- input res       = 224x224
+- patch size P    = 16
+- hidden size D   = 768    NOTE: is there a typo in [paper 4.4]? According to [paper Fig1] nr of layer = 12
+- nr of layers    = 12           so D = 768 (also makes more sense), but 4.4 has them switched around
+- MLP size        = 3072
+- number of heads = 12
 """
 class TransUNet(nn.Module):
 
@@ -171,7 +178,7 @@ class TransUNet(nn.Module):
 
         # Reshape block
         self.reshapeBlock = ReshapeBlock(
-            in_channels=..., # NOTE: isn't this D?
+            in_channels=768,
             out_channels=512
         )
 
@@ -209,7 +216,7 @@ class TransUNet(nn.Module):
         # Segmentation head
         self.segmentationHead = SegmentationHead(
             in_channels=16,
-            out_channels=3 # NOTE: assumption that output is rgb
+            out_channels=9 # NOTE: assumption because using 9 classes
         )
     
     def forward(self, x):
@@ -229,3 +236,39 @@ class TransUNet(nn.Module):
         x = self.segmentationHead(x)
 
         return x
+
+
+""" 
+The CNN part of the hybrid encoder is ResNet50 pretrained on ImageNet
+This is conveniently available in pytorch torchvision
+
+To extract the correct layers from the pretrained resnet we look at [paper Fig1],
+which is the only limited detail we have for the ResNet part.
+
+From [paper Fig1]: 3 hight level layers from ResNet, each containing a 1/2 downsampling
+Downsampling in ResNet is done by means of stride=2 convolutions [resnet]
+Looking at the structure of torchvision ResNet
+
+"""
+resnet = torchvision.models.resnet50(pretrained=True)
+resnet = list(resnet.children())
+
+# conv(stride=2)->bn->relu
+resnetBlock1 = nn.Sequential(*resnet[0:3])
+# maxpool->resnetLayer1->resnetLayer2(stride=2)
+resnetBlock2 = nn.Sequential(*resnet[3:6])
+
+resnetBlock3 = nn.Sequential(*resnet[6:7])
+
+# print(resnetBlock1)
+
+# ===
+
+resnet50 = torchvision.models.resnet50(pretrained=True)
+
+data = np.load('dataset/Synapse/train_npz/case0005_slice040.npz')
+data_image = data['image']
+data_label = data['label']
+
+
+output = resnet50(torch.tensor([data_image, data_image]))
