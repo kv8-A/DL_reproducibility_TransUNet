@@ -16,10 +16,10 @@ From Fig1 of the paper the UNet architecture can be derived as follows:
 - There are 3 skip connections that originate from the CNN encoder (ResNet) at resolution scales ½, ¼ and ⅛ .
 
 Using this information and [^unetcode] a pytorch module can be coded that represents one decoder block. This decoder block then consists of:
-- Bilinear 2x upsample
-- 3x3 Conv2d
-- Cascading the skip connection
-- ReLU
+1. Bilinear 2x upsample
+2. 3x3 Conv2d
+3. Cascading the skip connection
+4. ReLU
 
 There is however an inconsisticy between the UNet paper and TransUNet paper. In UNet every decoder block has an intermediate step resulting in two convoultions per block. Also UNet uses a batchnorm layer after every convolution. None of this is mentioned in [^transunet], so only the layers mentioned in 3.2 of [^transunet] are used in the `DecoderBlock`.
 
