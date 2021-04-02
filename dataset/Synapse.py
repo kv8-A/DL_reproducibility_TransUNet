@@ -45,7 +45,9 @@ class Synapse(data.Dataset):
             img = data['image']
             label = data['label']
             # Apply transforms
+            rng_state = torch.get_rng_state()
             img = self.transforms(img)
+            torch.set_rng_state(rng_state)
             label = self.transforms(label)
             
         elif self.mode.lower() == 'test':
@@ -54,9 +56,11 @@ class Synapse(data.Dataset):
             img = data['image'][:]
             label = data['label'][:]
             # Apply transforms on every slice
+            rng_state = torch.get_rng_state()
             img = torch.cat(
                 [self.transforms(img_slice) for img_slice in img]
             ).unsqueeze(1) # unsqueeze to add the 1 channel
+            torch.set_rng_state(rng_state)
             label = torch.cat(
                 [self.transforms(label_slice) for label_slice in label]
             ).unsqueeze(1) # unsqueeze to add the 1 channel

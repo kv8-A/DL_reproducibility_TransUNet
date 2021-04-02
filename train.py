@@ -87,16 +87,16 @@ def main():
 
         # Metrics
         end = time.time()
-        metrics['train_loss'].append(loss)
-        metrics['train_acc'].append(train_acc)
-        print('Epoch {} train loss: {:.4f}, acc: {:.4f}, time: {:.4f}'.format(epoch, train_loss, train_acc, end-start), flush=True)
+        # metrics['train_loss'].append(loss)
+        # metrics['train_acc'].append(train_acc)
+        # print('Epoch {} train loss: {:.4f}, acc: {:.4f}, time: {:.4f}'.format(epoch, train_loss, train_acc, end-start), flush=True)
 
-        val_loss, val_acc = validate_epoch(val_loader, model,
-                                        criterion, epoch)
+        # val_loss, val_acc = validate_epoch(val_loader, model,
+        #                                 criterion, epoch)
 
-        metrics['val_loss'].append(val_loss)
-        metrics['val_acc'].append(val_acc)
-        print('Epoch {} validation loss: {:.4f}, acc: {:.4f}'.format(epoch, val_loss, val_acc), flush=True)
+        # metrics['val_loss'].append(val_loss)
+        # metrics['val_acc'].append(val_acc)
+        # print('Epoch {} validation loss: {:.4f}, acc: {:.4f}'.format(epoch, val_loss, val_acc), flush=True)
 
 
 def train(epoch, dataloader, model, optimizer, criterion):
