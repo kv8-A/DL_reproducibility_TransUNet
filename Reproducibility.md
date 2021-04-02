@@ -148,6 +148,76 @@ resnetBlock4 = nn.Sequential(*resnet[6:8])
 ```python
 ```
 
+## The Dataset
+The dataset the paper uses for the Table1 experiments is the Synapse multi-organ segmentation dataset [^synapse]. This dataset consist of 30 abdominal CT scans, every scan consisting of a number of (85 ~ 198) axial contrast-enhanced abdominal clinical CT images [^transunet]. This results in a total of 3779 images with segmentation labels. The labels span across 8 different abdominal organs (aorta, gallbladder, spleen, left kidney, right kidney, liver, pancreas, spleen, stomach).
+
+The dataset is randomly split into 18 scans (2211 slices) for training and 12 scans (1568 slices) for validation. The raw dataset is available from Synapse directly [^synapse], however this paper performed preprocessing on the data which makes it workable in pytorch. The preprocedd data was provided by the authors and consists of `.npz` files for the training, being one singel channel image and label per file. The validation data are `.npy.h5` files being a batch of singel channel images and labels per file (one scan).
+
+The dataset is implemented in PyTorch and can read the numpy compatible files from a specified directory. Note that the paper also specifies that random transformations are performed on the data, these are random roration and random flipping, the latter is assumed to be both horizontal and vertical flipping. These transformations are also implemented in the dataset.
+
+```python
+class Synapse(data.Dataset):
+    """Dataset loader.
+    - root_dir (``string``): Data root directory path.
+    - mode (``string``): train or test
+    """
+
+    def __init__(self, data_dir, mode):
+        # Data root dir
+        self.data_dir = data_dir
+        # Mode
+        self.mode = mode
+        # Transforms
+        """ Random roration and flipping as mentioned in [paper 4.2] """
+        self.transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.RandomRotation(degrees=90),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize((224, 224)) # also resize to 224x224
+        ])
+        # Get the data filepaths
+        if self.mode.lower() == 'train':
+            self.data_list = [f for f in glob.glob(data_dir+'/*.npz')]
+        elif self.mode.lower() == 'test':
+            self.data_list = [f for f in glob.glob(data_dir+'/*.npy.h5')]
+
+    def __getitem__(self, i):
+        """
+        - index (``int``): index of the item in the dataset
+        """
+
+        if self.mode.lower() == 'train':
+            # Load the images at the filepath
+            data = np.load(self.data_list[i])
+            img = data['image']
+            label = data['label']
+            # Apply transforms
+            img = self.transforms(img)
+            label = self.transforms(label)
+            
+        elif self.mode.lower() == 'test':
+            # Load the images at the filepath
+            data = h5py.File(self.data_list[i], 'r')
+            img = data['image'][:]
+            label = data['label'][:]
+            # Apply transforms on every slice
+            img = torch.cat(
+                [self.transforms(img_slice) for img_slice in img]
+            ).unsqueeze(1) # unsqueeze to add the 1 channel
+            label = torch.cat(
+                [self.transforms(label_slice) for label_slice in label]
+            ).unsqueeze(1) # unsqueeze to add the 1 channel
+
+        return img, label
+        
+    def __len__(self):
+        """Returns the length of the dataset."""
+        return len(self.data_list)
+```
+
+## Training and Validation
+
 ## Bibliography
 
 [^transunet] Jieneng Chen, Yongyi Lu, Qihang Yu, Xiangde Luo,
@@ -158,3 +228,5 @@ Encoders for Medical Image Segmentation. 	arXiv:2102.04306
 Image Segmentation. arXiv:1505.04597
 
 [^unetcode] https://github.com/milesial/Pytorch-UNet
+
+[^synapse] https://www.synapse.org/#!Synapse:syn3193805/wiki/217789

@@ -45,32 +45,24 @@ class Synapse(data.Dataset):
             img = data['image']
             label = data['label']
             # Apply transforms
-            # if self.transforms is not None:
             img = self.transforms(img)
             label = self.transforms(label)
             
-            return img, label
-
         elif self.mode.lower() == 'test':
             # Load the images at the filepath
             data = h5py.File(self.data_list[i], 'r')
             img = data['image'][:]
             label = data['label'][:]
             # Apply transforms on every slice
-            # if self.transforms is not None:
-            #     for i_slice in range(img.shape[0]):
-            #         img[i_slice] = self.transforms(img[i_slice])
-            #         label[i_slice] = self.transforms(label[i_slice])
+            img = torch.cat(
+                [self.transforms(img_slice) for img_slice in img]
+            ).unsqueeze(1) # unsqueeze to add the 1 channel
+            label = torch.cat(
+                [self.transforms(label_slice) for label_slice in label]
+            ).unsqueeze(1) # unsqueeze to add the 1 channel
 
-            print(img.shape)
-
-            img = torch.tensor([self.transforms(img_slice) for img_slice in img])
-            label = torch.tensor([self.transforms(label_slice) for label_slice in label])
-
-            return img, label
+        return img, label
         
-        # return img, label
-
     def __len__(self):
         """Returns the length of the dataset."""
         return len(self.data_list)
