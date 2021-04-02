@@ -1,43 +1,7 @@
-""" 
-For reconstructing the ResNet-50 part
-Ref ResNet paper: https://arxiv.org/pdf/1512.03385.pdf [paper]
-
-The paper does not go in a lot of detail about the ResNet implementation
-apart from saying the 50 layer resnet is used, pretrained on ImageNet.
-Pytorch contains a pretrained ResNet-50 on ImageNet, which we can use.
-
-The skip connections from the paper are indicated to originate from the
-1/2, 1/4 and 1/8 resolution scales.
-
-======================================================================================
-
-For reconstructung the UNet part, we look at the decoder structure defined in the paper, and existing pytorch UNet implementations and paper.
+"""
 Ref UNet paper: https://arxiv.org/abs/1505.04597 [paper]
 Ref UNet code: https://github.com/milesial/Pytorch-UNet [self search for pytorch impl.]
-
-The paper mentions some dimensions chosen for the "base" model, being the one the experiments were performed on.
-- input res       = 224x224, has to be square
-- patch size P    = 16
-- hidden size D   = 768    NOTE: is this a typo in [paper 4.4]? According to [paper Fig1] nr of layer = 12
-- nr of layers    = 12           so D = 768 (also makes more sense), but 4.4 has them switched
-- MLP size        = 3072
-- number of heads = 12
-
-We can see from the paper that the UNet architecture has:
-    - 4 upsampling blocks
-    - always kernel size 3, so padding is always 1, stride is assumed 1(not mentioned in paper)
-    - 512 channels at the bottom
-    - the following decoder channel sizes are: 256 -> 128 -> 64 -> 16
-    - 3 skip connections
-
-according to UNet ref code, a decoder block consists of: upsample->conv->bn->relu->conv->bn->relu
-however the paper suggests a decoder block of: upsample->conv->relu
-according to the paper, the upsampling is done bilinearly
-
-the segmentation head definition is taken from UNet ref code as well
-as it is not discussed in the paper:
-    - conv : 16->2 | 1x1
-
+Ref ResNet paper: https://arxiv.org/pdf/1512.03385.pdf [paper]
 """
 
 import torch
