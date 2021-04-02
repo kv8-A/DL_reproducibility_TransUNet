@@ -244,13 +244,16 @@ class TransUNet(nn.Module):
         x3 = self.resnetBlock3(x2)
         x  = self.resnetBlock4(x3)
 
+        # Transformer
+        ...
+
         # Reshape
         x = self.reshapeBlock(x)
 
         # Decoder
-        x = self.decoderBlock1(x, skip=...)
-        x = self.decoderBlock2(x, skip=...)
-        x = self.decoderBlock3(x, skip=...)
+        x = self.decoderBlock1(x, skip=x3)
+        x = self.decoderBlock2(x, skip=x2)
+        x = self.decoderBlock3(x, skip=x1)
         x = self.decoderBlock4(x, skip=None)
         
         # Segmentation head
