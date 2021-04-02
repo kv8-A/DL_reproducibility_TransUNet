@@ -177,6 +177,19 @@ class TransUNet(nn.Module):
         super().__init__()
 
         # Encoder blocks: ResNet-50
+        resnet = torchvision.models.resnet50(pretrained=True)
+        resnet = list(resnet.children())
+        # conv(stride=2)->bn->relu
+        self.resnetBlock1 = nn.Sequential(*resnet[0:3]) # -> 64 channels
+        # maxpool(stride=2)->resnetLayer1
+        self.resnetBlock2 = nn.Sequential(*resnet[3:5]) # -> 256 channels
+        # resnetLayer2(stride=2)
+        self.resnetBlock3 = nn.Sequential(*resnet[5])   # -> 512 channels
+        # resnetLayer3(stride=2)->resnetLayer4(stride=2)
+        self.resnetBlock4 = nn.Sequential(*resnet[6:8])
+
+        # Transformer
+        ...
 
         # Reshape block
         self.reshapeBlock = ReshapeBlock(
@@ -197,22 +210,22 @@ class TransUNet(nn.Module):
         self.decoderBlock1 = DecoderBlock(
             in_channels=512,
             out_channels=256,
-            skip_channels=...
+            skip_channels=512 # from resnetBlock3
         ),
         self.decoderBlock2 = DecoderBlock(
             in_channels=256,
             out_channels=128,
-            skip_channels=...
+            skip_channels=256 # from resnetBlock2
         ),
         self.decoderBlock3 = DecoderBlock(
             in_channels=128,
             out_channels=64,
-            skip_channels=...
+            skip_channels=64 # from resnetBlock1
         ),
         self.decoderBlock4 = DecoderBlock(
             in_channels=64,
             out_channels=16,
-            skip_channels=0
+            skip_channels=0 # no skip connection
         )
 
         # Segmentation head
@@ -222,8 +235,14 @@ class TransUNet(nn.Module):
         )
     
     def forward(self, x):
+        if x.shape[1] == 1: # if grayscale
+            x = x.repeat(1, 3, 1, 1) # always have 3 channels
+
         # Encoder
-        ...
+        x1 = self.resnetBlock1(x)
+        x2 = self.resnetBlock2(x1)
+        x3 = self.resnetBlock3(x2)
+        x  = self.resnetBlock4(x3)
 
         # Reshape
         x = self.reshapeBlock(x)
@@ -238,39 +257,3 @@ class TransUNet(nn.Module):
         x = self.segmentationHead(x)
 
         return x
-
-
-""" 
-The CNN part of the hybrid encoder is ResNet50 pretrained on ImageNet
-This is conveniently available in pytorch torchvision
-
-To extract the correct layers from the pretrained resnet we look at [paper Fig1],
-which is the only limited detail we have for the ResNet part.
-
-From [paper Fig1]: 3 hight level layers from ResNet, each containing a 1/2 downsampling
-Downsampling in ResNet is done by means of stride=2 convolutions [resnet]
-Looking at the structure of torchvision ResNet
-
-"""
-resnet = torchvision.models.resnet50(pretrained=True)
-resnet = list(resnet.children())
-
-# conv(stride=2)->bn->relu
-resnetBlock1 = nn.Sequential(*resnet[0:3])
-# maxpool->resnetLayer1->resnetLayer2(stride=2)
-resnetBlock2 = nn.Sequential(*resnet[3:6])
-
-resnetBlock3 = nn.Sequential(*resnet[6:7])
-
-# print(resnetBlock1)
-
-# ===
-
-resnet50 = torchvision.models.resnet50(pretrained=True)
-
-data = np.load('dataset/Synapse/train_npz/case0005_slice040.npz')
-data_image = data['image']
-data_label = data['label']
-
-
-output = resnet50(torch.tensor([data_image, data_image]))
