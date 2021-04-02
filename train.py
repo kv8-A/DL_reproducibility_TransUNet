@@ -9,6 +9,22 @@ from dataset import Synapse
 from model import TransUNet
 from utils.logging import AverageMeter, ProgressMeter
 
+"""
+From [paper 4.1]:
+
+Metrics:
+    - dice score DSC for each organ [%]
+    - average dice score DSC [%]
+    - average hausdorff distance [mm]
+
+8 organs (=> 9 classes)
+
+Training: 18 cases - 2211 total slices NOTE: sais 2212, but we recieved 2211
+
+Testing : 12 cases - 
+
+"""
+
 config = OrderedDict(
     # === DATASET ===
     # train_size=1000,
@@ -55,7 +71,7 @@ def main():
     # Define loss
     criterion = nn.CrossEntropyLoss() # NOTE: CE assumed, loss function not mentioned in paper
 
-    # For storing the statistics
+    # Metrics
     metrics = {'train_loss': [],
                'train_acc': [],
                'val_loss': [],
@@ -63,50 +79,15 @@ def main():
 
     # Epoch loop
     for epoch in range(config['epochs']):
-        # Logging
-        start = time.time()
-        batch_time = AverageMeter('Time', ':6.3f')
-        loss_running = AverageMeter('Loss', ':.4e')
-        acc_running = AverageMeter('Accuracy', ':.3f')
-        progress = ProgressMeter(
-            len(dataloader),
-            [batch_time, loss_running, acc_running],
-            prefix="Train, epoch: [{}]".format(epoch))
-            
-        # Switch to train mode
-        model.train()
 
-        # Batches loop
-        for i, batch in enumerate(dataloader):
-            optimizer.zero_grad()
+        # Train on data
+        _ = train(epoch, dataloader, model, optimizer, criterion)
 
-            # Get batch data
-            input_batch = batch['image']
-            label_batch = batch['label']
+        # Test on data
 
-            # Foreward pass
-            output = model(input_batch)
-
-            # Loss
-            loss = criterion(output, label_batch)
-            loss_running.update(loss.item())
-
-            # Backwards pass
-            loss.backward()
-            optimizer.step()
-
-            # Accuracy
-            accuracy = ... # TODO
-            acc_running.update(...)
-
-            # Logging
-            progress.display(i)
-            batch_time.update(time.time() - start)
-            start = time.time()
-
-        # Logging
+        # Metrics
         end = time.time()
-        metrics['train_loss'].append(train_loss)
+        metrics['train_loss'].append(loss)
         metrics['train_acc'].append(train_acc)
         print('Epoch {} train loss: {:.4f}, acc: {:.4f}, time: {:.4f}'.format(epoch, train_loss, train_acc, end-start), flush=True)
 
@@ -118,40 +99,55 @@ def main():
         print('Epoch {} validation loss: {:.4f}, acc: {:.4f}'.format(epoch, val_loss, val_acc), flush=True)
 
 
-def train_epoch(dataloader, model, loss, optimizer, epoch):
-    # # Logging
-    # batch_time = AverageMeter('Time', ':6.3f')
-    # loss_running = AverageMeter('Loss', ':.4e')
-    # acc_running = AverageMeter('Accuracy', ':.3f')
-    # progress = ProgressMeter(
-    #     len(dataloader),
-    #     [batch_time, loss_running, acc_running],
-    #     prefix="Train, epoch: [{}]".format(epoch))
-    # start = time.time()
+def train(epoch, dataloader, model, optimizer, criterion):
+    """ 
+    Trains network for one epoch in batches
+    """
 
-    # # Train
-    # model.train()
+    # Metrics
+    batch_time = AverageMeter('Time', ':6.3f')
+    loss_running = AverageMeter('Loss', ':.4e')
+    acc_running = AverageMeter('Accuracy', ':.3f')
+    progress = ProgressMeter(
+        len(dataloader),
+        [batch_time, loss_running, acc_running],
+        prefix="Train, epoch: [{}]".format(epoch))
+    start = time.time()
 
-    # with torch.set_grad_enabled(True):
-        # Iterate over data.
-        # for epoch_step, (input, label) in enumerate(dataloader):
+    # Switch to train mode
+    model.train()
 
-            # # Loss
-            # loss = ...  # TODO
-            # loss_running.update(...)
+    # Batches loop
+    for i, batch in enumerate(dataloader):
 
-            # Top-1 accuracy
-            # accuracy = ... # TODO
-            # acc_running.update(...)
+        # Get batch data
+        input_batch = batch['image']
+        label_batch = batch['label']
 
-            # progress.display(epoch_step)
+        # Foreward pass
+        output = model(input_batch)
 
-            # Measure time
-            # batch_time.update(time.time() - start)
-            # start = time.time()
+        # Loss
+        loss = criterion(output, label_batch)
+        loss_running.update(loss.item())
 
-    return loss_running.avg, acc_running.avg
+        # Backwards pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
+        # TODO: do some lr scheduling?
+
+        # Accuracy
+        accuracy = ... # TODO
+        acc_running.update(...)
+
+        # Metrics
+        progress.display(i)
+        batch_time.update(time.time() - start)
+        start = time.time()
+
+    return 
 
 def validate_epoch(dataloader, model, loss, epoch):
     batch_time = AverageMeter('Time', ':6.3f')

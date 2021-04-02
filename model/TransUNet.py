@@ -31,7 +31,7 @@ We can see from the paper that the UNet architecture has:
     - 3 skip connections
 
 according to UNet ref code, a decoder block consists of: upsample->conv->bn->relu->conv->bn->relu
-however the paper suggests a decoder block of: upsample->conv_relu
+however the paper suggests a decoder block of: upsample->conv->relu
 according to the paper, the upsampling is done bilinearly
 
 the segmentation head definition is taken from UNet ref code as well
@@ -45,19 +45,19 @@ import torchvision
 import torch.nn as nn
 import numpy as np
 
-"""
-Decoder block
-
-According to paper, made clear in text and by Fig1, they use for 1 of the 4 blocks:
-1. upsample : bilinear | resolution x2
-2. (add skip connection) # [UNet, paper Fig1]
-3. conv     : (inch+skipch)->outch | 3x3
-4. ReLU
-
-NOTE: deviation from UNet paper: UNet adds batchnorm before relu [UNet code]
-      and has an intermediate step resulting in another conv->bn->relu added to the sequence
-"""
 class DecoderBlock(nn.Module):
+    """
+    Decoder block
+
+    According to paper, made clear in text and by Fig1, they use for 1 of the 4 blocks:
+    1. upsample : bilinear | resolution x2
+    2. (add skip connection) # [UNet, paper Fig1]
+    3. conv     : (inch+skipch)->outch | 3x3
+    4. ReLU
+
+    NOTE: deviation from UNet paper: UNet adds batchnorm before relu [UNet code]
+        and has an intermediate step resulting in another conv->bn->relu added to the sequence
+    """
 
     def __init__(self, in_channels, out_channels, skip_channels):
         super().__init__()
@@ -88,13 +88,14 @@ class DecoderBlock(nn.Module):
         # ReLU
         x = self.relu(x)
 
-""" 
-The segmentation head
-converts input back to final output image with segmented labels
 
-- conv : 16->2 | 1x1 [UNet]
-"""
 class SegmentationHead(nn.Module):
+    """ 
+    The segmentation head
+    converts input back to final output image with segmented labels
+
+    - conv : 16->2 | 1x1 [UNet]
+    """
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -103,7 +104,7 @@ class SegmentationHead(nn.Module):
         self.conv = nn.Conv2d(
             in_channels=in_channels,
             out_channels=out_channels,
-            kernel_size=1, # NOTE: kernel size not mentioned in paper, assuming 1 from UNet ref code
+            kernel_size=1,
             padding=0,
             stride=1
         )
@@ -113,18 +114,19 @@ class SegmentationHead(nn.Module):
 
         return x
 
-"""
-Reshapes the output of the transformer encoder
-from (n_patch, D) -> (D, H/P, W/P) -> (512, H/P, W/P) [paper]
-This block includes the first 3x3 convolution
 
-output of encoder is (N, n_patch, D) with N batch size, D hidden size
-input has to be square images, so H = W
-we know n_patch = HW/P^2 = H^2/P^2 => H/P = sqrt(n_patch)
-
-using a 1x1 convolution [paper]
-"""
 class ReshapeBlock(nn.Module):
+    """
+    Reshapes the output of the transformer encoder
+    from (n_patch, D) -> (D, H/P, W/P) -> (512, H/P, W/P) [paper]
+    This block includes the first 3x3 convolution
+
+    output of encoder is (N, n_patch, D) with N batch size, D hidden size
+    input has to be square images, so H = W
+    we know n_patch = HW/P^2 = H^2/P^2 => H/P = sqrt(n_patch)
+
+    using a 1x1 convolution [paper]
+    """
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -153,23 +155,23 @@ class ReshapeBlock(nn.Module):
 
         return x
 
-"""
-TransUNet Network
-
-Consisting of hybrid CNN-Transformer encoder
-and UNet cascaded decoder with skip connections
-
-Network architectire derived from [paper Fig1]
-
-The paper mentions some dimensions chosen for the "base" model, being the one the experiments were performed on.
-- input res       = 224x224
-- patch size P    = 16
-- hidden size D   = 768    NOTE: is there a typo in [paper 4.4]? According to [paper Fig1] nr of layer = 12
-- nr of layers    = 12           so D = 768 (also makes more sense), but 4.4 has them switched around
-- MLP size        = 3072
-- number of heads = 12
-"""
 class TransUNet(nn.Module):
+    """
+    TransUNet Network
+
+    Consisting of hybrid CNN-Transformer encoder
+    and UNet cascaded decoder with skip connections
+
+    Network architectire derived from [paper Fig1]
+
+    The paper mentions some dimensions chosen for the "base" model, being the one the experiments were performed on.
+    - input res       = 224x224
+    - patch size P    = 16
+    - hidden size D   = 768    NOTE: is there a typo in [paper 4.4]? According to [paper Fig1] nr of layer = 12
+    - nr of layers    = 12           so D = 768 (also makes more sense), but 4.4 has them switched around
+    - MLP size        = 3072
+    - number of heads = 12
+    """
 
     def __init__(self):
         super().__init__()
