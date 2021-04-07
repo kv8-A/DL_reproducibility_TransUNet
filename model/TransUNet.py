@@ -217,7 +217,7 @@ class TransUNet(nn.Module):
         x1 = self.resnetBlock1(x)
         x2 = self.resnetBlock2(x1)
         x3 = self.resnetBlock3(x2)
-        x  = self.resnetBlock4(x3)
+        x  = self.resnetBlock4(x3) 
 
         # Transformer
         x = self.transformer(x)
