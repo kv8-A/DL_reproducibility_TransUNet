@@ -31,6 +31,7 @@ class Synapse(data.Dataset):
         # Get the data filepaths
         if self.mode.lower() == 'train':
             self.data_list = [f for f in glob.glob(data_dir+'/*.npz')]
+            self.data_list = self.data_list[0:5] # for debugging
         elif self.mode.lower() == 'test':
             self.data_list = [f for f in glob.glob(data_dir+'/*.npy.h5')]
 
@@ -65,7 +66,7 @@ class Synapse(data.Dataset):
                 [self.transforms(label_slice) for label_slice in label]
             ).unsqueeze(1) # unsqueeze to add the 1 channel
 
-        return img, label
+        return {'image': img, 'label': label}
         
     def __len__(self):
         """Returns the length of the dataset."""

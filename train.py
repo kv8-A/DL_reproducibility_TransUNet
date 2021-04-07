@@ -4,10 +4,11 @@ import time
 import numpy as np
 from collections import OrderedDict
 from torch.utils.data import DataLoader
-
-from dataset import Synapse
-from model import TransUNet
+from torch.utils.tensorboard import SummaryWriter
+from dataset.Synapse import Synapse
+from model.TransUNet import TransUNet
 from utils.logging import AverageMeter, ProgressMeter
+from tqdm import tqdm
 
 """
 From [paper 4.1]:
@@ -21,21 +22,19 @@ Metrics:
 
 Training: 18 cases - 2211 total slices NOTE: sais 2212, but we recieved 2211
 
-Testing : 12 cases - 
+Testing : 12 cases
 
 """
 
 config = OrderedDict(
     # === DATASET ===
-    # train_size=1000,
-    # validation_size=500,
-    # test_size=500,
     n_classes=9,
 
     # === OPTIMIZER ===
     batch_size=24, # [paper 4.2]
     max_iterations = 14000, # [paper 4.2]
     # epochs=30,
+    epochs=5, # for debugging
     # num_workers=8,
     learning_rate=0.01, # [paper 4.2]
     momentum=0.01, # [paper 4.2]
@@ -49,8 +48,10 @@ def main():
     np.random.seed(68)
 
     # Define the data
-    dataset = Synapse(data_dir='dataset/Synapse/train_npz', mode='train')
-    dataloader = DataLoader(dataset=dataset, batch_size=config['batch_size'])
+    train_dataset = Synapse(data_dir='dataset/Synapse/train_npz', mode='train')
+    train_loader = DataLoader(dataset=train_dataset, batch_size=config['batch_size'])
+    test_dataset = Synapse(data_dir='dataset/Synapse/test_vol_h5', mode='test')
+    test_loader = DataLoader(dataset=test_dataset, batch_size=1) # batch size 1 because the volumes are batches themselves
 
     # Define network
     model = TransUNet()
@@ -69,102 +70,106 @@ def main():
     )
 
     # Define loss
-    criterion = nn.CrossEntropyLoss() # NOTE: CE assumed, loss function not mentioned in paper
+    criterion = nn.CrossEntropyLoss() # NOTE: CE assumed, but loss function not mentioned in paper
 
-    # Metrics
-    metrics = {'train_loss': [],
-               'train_acc': [],
-               'val_loss': [],
-               'val_acc': []}
+    # Create Tensorboard writer
+    writer = SummaryWriter()
 
     # Epoch loop
-    for epoch in range(config['epochs']):
+    # for epoch in tqdm(range(config['epochs'])):
+    for epoch in tqdm(range(config['epochs']), desc='Epochs'):
 
         # Train on data
-        _ = train(epoch, dataloader, model, optimizer, criterion)
+        train_loss = train(epoch, train_loader, model, optimizer, criterion)
 
         # Test on data
+        test_loss = test(epoch, train_loader, model)
 
         # Metrics
-        end = time.time()
-        # metrics['train_loss'].append(loss)
-        # metrics['train_acc'].append(train_acc)
-        # print('Epoch {} train loss: {:.4f}, acc: {:.4f}, time: {:.4f}'.format(epoch, train_loss, train_acc, end-start), flush=True)
+        # end = time.time()
+        writer.add_scalars("Loss", {"Train": train_loss}, epoch)
 
         # val_loss, val_acc = validate_epoch(val_loader, model,
         #                                 criterion, epoch)
 
-        # metrics['val_loss'].append(val_loss)
-        # metrics['val_acc'].append(val_acc)
-        # print('Epoch {} validation loss: {:.4f}, acc: {:.4f}'.format(epoch, val_loss, val_acc), flush=True)
 
-
-def train(epoch, dataloader, model, optimizer, criterion):
+def train(epoch, train_loader, model, optimizer, criterion):
     """ 
     Trains network for one epoch in batches
     """
 
     # Metrics
-    batch_time = AverageMeter('Time', ':6.3f')
+    # start = time.time()
+    # batch_time = AverageMeter('Time', ':6.3f')
     loss_running = AverageMeter('Loss', ':.4e')
-    acc_running = AverageMeter('Accuracy', ':.3f')
-    progress = ProgressMeter(
-        len(dataloader),
-        [batch_time, loss_running, acc_running],
-        prefix="Train, epoch: [{}]".format(epoch))
-    start = time.time()
+    # progress = ProgressMeter(
+    #     len(train_loader),
+    #     [batch_time, loss_running],
+    #     prefix="Train, epoch: [{}]".format(epoch)
+    # )
 
-    # Switch to train mode
+    # Switch to training mode
     model.train()
+    torch.set_grad_enabled(True)
 
     # Batches loop
-    for i, batch in enumerate(dataloader):
+    for i, batch in enumerate(train_loader):
 
         # Get batch data
         input_batch = batch['image']
         label_batch = batch['label']
+        
+        # Zero the parameter gradients
+        optimizer.zero_grad()
 
         # Foreward pass
         output = model(input_batch)
 
         # Loss
-        loss = criterion(output, label_batch)
-        loss_running.update(loss.item())
+        # output = torch.argmax(torch.softmax(output, dim=1), dim=1)
+        label_batch = label_batch.squeeze(1)
+        loss = criterion(output, label_batch.long())
 
         # Backwards pass
-        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         # TODO: do some lr scheduling?
 
-        # Accuracy
-        accuracy = ... # TODO
-        acc_running.update(...)
-
         # Metrics
-        progress.display(i)
-        batch_time.update(time.time() - start)
-        start = time.time()
+        loss_running.update(loss.item())
+        # progress.display(i)
+        # batch_time.update(time.time() - start)
+        # start = time.time()
 
-    return 
+    return loss_running.avg
 
-def validate_epoch(dataloader, model, loss, epoch):
-    batch_time = AverageMeter('Time', ':6.3f')
+def test(epoch, test_loader, model):
+
+    # Metrics
     loss_running = AverageMeter('Loss', ':.4e')
-    acc_running = AverageMeter('Accuracy', ':.3f')
-    progress = ProgressMeter(
-        len(dataloader),
-        [batch_time, loss_running, acc_running],
-        prefix="Validation, epoch: [{}]".format(epoch))
 
-    start = time.time()
-
+    # Switch to testing mode
     model.eval()
+    torch.set_grad_enabled(False)
 
-    # TODO Implement validation procedure similarly to the training procedure
+    # Batches loop
+    for i, batch in enumerate(test_loader):
 
-    return loss_running.avg, acc_running.avg
+        # Get batch data
+        input_batch = batch['image']
+        label_batch = batch['label']
+
+        print(input_batch.shape)
+
+        # Foreward pass
+        output = model(input_batch)
+
+        # Loss
+        label_batch = label_batch.squeeze(1)
+        # loss = criterion(output, label_batch.long())
+
+    return 0
 
 
 if __name__ == "__main__":

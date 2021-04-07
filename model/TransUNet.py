@@ -9,6 +9,15 @@ import torchvision
 import torch.nn as nn
 import numpy as np
 
+class TransformerBlock(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        ...
+
+
 class DecoderBlock(nn.Module):
     """
     Decoder block
@@ -153,7 +162,7 @@ class TransUNet(nn.Module):
         self.resnetBlock4 = nn.Sequential(*resnet[6:8])
 
         # Transformer
-        ...
+        self.transformer = TransformerBlock(...)
 
         # Reshape block
         self.reshapeBlock = ReshapeBlock(
@@ -194,9 +203,11 @@ class TransUNet(nn.Module):
 
         # Segmentation head
         self.segmentationHead = SegmentationHead(
-            in_channels=16,
+            # in_channels=16,
+            in_channels=2048,
             out_channels=9 # NOTE: assumption because using 9 classes
         )
+
     
     def forward(self, x):
         if x.shape[1] == 1: # if grayscale
@@ -209,7 +220,7 @@ class TransUNet(nn.Module):
         x  = self.resnetBlock4(x3)
 
         # Transformer
-        ...
+        x = self.transformer(x)
 
         # Reshape
         x = self.reshapeBlock(x)
@@ -219,6 +230,13 @@ class TransUNet(nn.Module):
         x = self.decoderBlock2(x, skip=x2)
         x = self.decoderBlock3(x, skip=x1)
         x = self.decoderBlock4(x, skip=None)
+
+        # test = nn.Upsample(
+        #     scale_factor=32,
+        #     mode='bilinear',
+        #     align_corners=False
+        # )
+        # x = test(x)
         
         # Segmentation head
         x = self.segmentationHead(x)
