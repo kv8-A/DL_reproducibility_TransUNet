@@ -1,6 +1,6 @@
 # Python environment
 env
-__pycache__
+**/__pycache__
 runs
 
 # Editor 
