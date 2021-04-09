@@ -143,6 +143,13 @@ resnetBlock4 = nn.Sequential(*resnet[6:8])
 
 ## Reproducing Transformer Encoder
 
+From the CNN encoder that was reproduced in the section before, the output of this CNN can now be used to create the embedded space which is used as input to the transformer.
+ 
+The transformer encoder from the TransUnet is implimented from the paper An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' - https://arxiv.org/abs/2010.11929 . 
+This paper is therefore also studied and used for the reproducability of the TransUNet paper, as the original code is written for Tensorflow, it is now to us to convert it to PyTorch.
+For this Pytorch implementation a github libary was found '''ref this'''. This libary is used as a the main help for this implementation. 
+
+
 ## Final Reproduced TransUNet
 
 ```python
@@ -234,3 +241,6 @@ Image Segmentation. arXiv:1505.04597
 [^unetcode] https://github.com/milesial/Pytorch-UNet
 
 [^synapse] https://www.synapse.org/#!Synapse:syn3193805/wiki/217789
+
+[^pytorch_implementation_transformers] https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py 
+
