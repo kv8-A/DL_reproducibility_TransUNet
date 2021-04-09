@@ -33,9 +33,9 @@ Next is patch + position embedding
 Embedded sequence x1 , x2 ,x3 x4
 """
 
-# layer norm / first layer block 
-
-#msa Multi head self attention   // create self attention vectors fr every organ
+# =============================================================================
+# This is the embedding class, so after the linear in overview scheme 
+# =============================================================================
 
 class PatchEmbed(nn.Module):
     """Split image into patches and then embed them.
@@ -64,9 +64,7 @@ class PatchEmbed(nn.Module):
         self.patch_size = patch_size
         self.n_patches = (img_size // patch_size) ** 2
 
-# =============================================================================
 # This is the linear porjection
-# =============================================================================
 
         self.proj = nn.Conv2d(
                 in_chans,
@@ -94,7 +92,10 @@ class PatchEmbed(nn.Module):
 
         return x
 
-#multi head attention
+# =============================================================================
+# This attention class is the MSA layer, = Multi head self attention
+# =============================================================================
+
 class Attention(nn.Module):
     """Attention mechanism.
     Parameters
@@ -176,11 +177,10 @@ class Attention(nn.Module):
 
         return x
 
+# =============================================================================
+# This is the MLP from our scheme 
+# =============================================================================
 
-# second layer norm  . second layer block
- 
-
-#mlp   Multi layer perceptron
 # One hidden layer, Gaussion linear unnit activation functiuon GELU will be used
 class MLP(nn.Module):
     """Multilayer perceptron.
@@ -234,8 +234,10 @@ class MLP(nn.Module):
         return x
 
 # =============================================================================
-# Now we have everythin we need put thinks to gether
+# This class is equal to one transformer layer, so the yellow block in the scheme
 # =============================================================================
+
+# Now we have everythin we need put thinks to gether
 
 class Block(nn.Module):
     """Transformer block.
@@ -263,7 +265,8 @@ class Block(nn.Module):
     """
     def __init__(self, dim, n_heads, mlp_ratio=4.0, qkv_bias=True, p=0., attn_p=0.):
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)    #This is the first layer norm
+        # This is the MSA 
         self.attn = Attention(
                 dim,
                 n_heads=n_heads,
@@ -271,8 +274,9 @@ class Block(nn.Module):
                 attn_p=attn_p,
                 proj_p=p
         )
-        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)   # second layer norm
         hidden_features = int(dim * mlp_ratio)
+        # This is where the MLP layer comes in 
         self.mlp = MLP(
                 in_features=dim,
                 hidden_features=hidden_features,
@@ -295,6 +299,9 @@ class Block(nn.Module):
 
         return x
 
+# =============================================================================
+# This is the vision transformer, where the depth will be 12 for TransUNet
+# =============================================================================
 
 class VisionTransformer(nn.Module):
     """Simplified implementation of the Vision transformer.
