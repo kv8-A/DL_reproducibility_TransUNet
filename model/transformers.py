@@ -345,7 +345,7 @@ class VisionTransformer(nn.Module):
             self,
             img_size=384,
             patch_size=16,
-            in_chans=3,
+            in_chans=3,     # Should be 2048 with output from CNN
             n_classes=1000,
             embed_dim=768,
             depth=12,           #This is 12 for TransUNet
