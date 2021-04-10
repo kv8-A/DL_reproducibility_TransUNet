@@ -34,6 +34,7 @@ class Synapse(data.Dataset):
             self.data_list = self.data_list[0:5] # for debugging
         elif self.mode.lower() == 'test':
             self.data_list = [f for f in glob.glob(data_dir+'/*.npy.h5')]
+            self.data_list = self.data_list[4:5] # for debugging
 
     def __getitem__(self, i):
         """
