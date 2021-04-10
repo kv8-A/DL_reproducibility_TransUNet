@@ -2,11 +2,7 @@ import torch
 import torch.nn as nn 
 import numpy as np 
 
-torch.manual_seed(123)
 
-b, t, k = 4, 5, 6
-
-x = torch.randn((b, t, k))
 
 # below this is vision transformer implementation
 # we use the pretrained weights.
