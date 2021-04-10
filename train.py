@@ -9,6 +9,10 @@ from dataset.Synapse import Synapse
 from model.TransUNet import TransUNet
 from utils.logging import AverageMeter, ProgressMeter
 from tqdm import tqdm
+from medpy import metric
+import matplotlib.pyplot as plt
+from matplotlib import cm
+import torchvision
 
 """
 From [paper 4.1]:
@@ -76,17 +80,15 @@ def main():
     writer = SummaryWriter()
 
     # Epoch loop
-    # for epoch in tqdm(range(config['epochs'])):
     for epoch in tqdm(range(config['epochs']), desc='Epochs'):
 
         # Train on data
         train_loss = train(epoch, train_loader, model, optimizer, criterion)
 
         # Test on data
-        test_loss = test(epoch, train_loader, model)
+        test_loss = test(epoch, test_loader, model)
 
         # Metrics
-        # end = time.time()
         writer.add_scalars("Loss", {"Train": train_loss}, epoch)
 
         # val_loss, val_acc = validate_epoch(val_loader, model,
@@ -99,14 +101,7 @@ def train(epoch, train_loader, model, optimizer, criterion):
     """
 
     # Metrics
-    # start = time.time()
-    # batch_time = AverageMeter('Time', ':6.3f')
     loss_running = AverageMeter('Loss', ':.4e')
-    # progress = ProgressMeter(
-    #     len(train_loader),
-    #     [batch_time, loss_running],
-    #     prefix="Train, epoch: [{}]".format(epoch)
-    # )
 
     # Switch to training mode
     model.train()
@@ -116,18 +111,18 @@ def train(epoch, train_loader, model, optimizer, criterion):
     for i, batch in enumerate(train_loader):
 
         # Get batch data
-        input_batch = batch['image']
+        img_batch = batch['image']
         label_batch = batch['label']
         
         # Zero the parameter gradients
         optimizer.zero_grad()
 
-        # Foreward pass
-        output = model(input_batch)
+        # Forward pass
+        output = model(img_batch)
 
         # Loss
         # output = torch.argmax(torch.softmax(output, dim=1), dim=1)
-        label_batch = label_batch.squeeze(1)
+        label_batch = label_batch.squeeze(1) # remove the 1 channel dim, as required by the criterion
         loss = criterion(output, label_batch.long())
 
         # Backwards pass
@@ -138,9 +133,6 @@ def train(epoch, train_loader, model, optimizer, criterion):
 
         # Metrics
         loss_running.update(loss.item())
-        # progress.display(i)
-        # batch_time.update(time.time() - start)
-        # start = time.time()
 
     return loss_running.avg
 
@@ -157,16 +149,37 @@ def test(epoch, test_loader, model):
     for i, batch in enumerate(test_loader):
 
         # Get batch data
-        input_batch = batch['image']
-        label_batch = batch['label']
+        # img_batch = batch['image'][0] # [0] because batch of single volume
+        # label_batch = batch['label'][0]# [0] because batch of single volume
+        img_batch = batch['image'][0][50:51] # [0] because batch of single volume
+        label_batch = batch['label'][0][50:51] # [0] because batch of single volume
 
-        print(input_batch.shape)
-
-        # Foreward pass
-        output = model(input_batch)
+        # Forward pass
+        output = model(img_batch)
 
         # Loss
-        label_batch = label_batch.squeeze(1)
+        """ For the loss and validation metrics calculations, the source code of TransUNet has been referenced """
+        output = torch.argmax(torch.softmax(output, dim=1), dim=1) # convert output to single channel class labels
+        label_batch = label_batch.squeeze(1) # remove the 1 channel dim
+        n_classes = output.shape[1]
+        # Loop over batch
+        for i in range(output.shape[0]):
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
+            ax1.imshow(img_batch[i][0], cmap='gray')
+            ax2.imshow(output[i], cmap='gnuplot')
+            ax3.imshow(label_batch[i], cmap='gnuplot')
+            plt.show()
+            # output[i]
+            # label_batch[i]
+            # for j in range(1, n_classes): # exclude the zero class
+                
+
+        # n_classes = output.shape[1]
+        # print(output.shape)
+        # print((output == 1).shape)
+        # for i in range(1, n_classes):
+        #     DSC = metric.binary.dc(pred, gt)
+        #     HD  = metric.binary.hd95(pred, gt)
         # loss = criterion(output, label_batch.long())
 
     return 0
