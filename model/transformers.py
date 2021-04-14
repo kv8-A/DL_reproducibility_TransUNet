@@ -401,20 +401,20 @@ class VisionTransformer(nn.Module):
         n_samples = x.shape[0]
         x = self.patch_embed(x)
 
-        cls_token = self.cls_token.expand(
-                n_samples, -1, -1
-        )  # (n_samples, 1, embed_dim)
-        x = torch.cat((cls_token, x), dim=1)  # (n_samples, 1 + n_patches, embed_dim)
-        x = x + self.pos_embed  # (n_samples, 1 + n_patches, embed_dim)
-        x = self.pos_drop(x)
+        # cls_token = self.cls_token.expand(
+        #         n_samples, -1, -1
+        # )  # (n_samples, 1, embed_dim)
+        # x = torch.cat((cls_token, x), dim=1)  # (n_samples, 1 + n_patches, embed_dim)
+        # x = x + self.pos_embed  # (n_samples, 1 + n_patches, embed_dim)
+        # x = self.pos_drop(x)
 
         for block in self.blocks:
             x = block(x)
 
-        x = self.norm(x)
+        # x = self.norm(x)
 
-        cls_token_final = x[:, 0]  # just the CLS token
-        x = self.head(cls_token_final)
+        # cls_token_final = x[:, 0]  # just the CLS token
+        # x = self.head(cls_token_final)
 
         return x
 

@@ -9,6 +9,8 @@ import torchvision
 import torch.nn as nn
 import numpy as np
 
+from model.transformers import VisionTransformer
+
 class DecoderBlock(nn.Module):
     """
     Decoder block
@@ -29,7 +31,8 @@ class DecoderBlock(nn.Module):
         # 2x Bilinear upsampling
         self.upsample = nn.Upsample(
             scale_factor=2, # [paper]
-            mode='bilinear' # [paper]
+            mode='bilinear', # [paper]
+            align_corners=False
         )
         # 3x3 Convolutional, accepting the skip connection
         self.conv = nn.Conv2d(
@@ -47,10 +50,13 @@ class DecoderBlock(nn.Module):
         x = self.upsample(x)
         # Add skip connection
         if skip != None: x = torch.cat([x, skip], dim=1)
+
         # Conv
         x = self.conv(x)
         # ReLU
         x = self.relu(x)
+
+        return x
 
 
 class SegmentationHead(nn.Module):
@@ -111,7 +117,7 @@ class ReshapeBlock(nn.Module):
         N, n_patch, D = x.size() # [paper Fig1]
         h_P = int(np.sqrt(n_patch)) # H/P [paper 3.1]
         x = x.view(N, h_P, h_P, D) # reshape using value for H/P (W/P = H/P)
-        x = x.permute(0, 2, 3, 1) # reorder dimensions according to [paper Fig1]
+        x = x.permute(0, 3, 1, 2) # reorder dimensions according to [paper Fig1]
         # Conv
         x = self.conv(x)
         # ReLU
@@ -150,10 +156,23 @@ class TransUNet(nn.Module):
         # resnetLayer2(stride=2)
         self.resnetBlock3 = nn.Sequential(*resnet[5])   # -> 512 channels
         # resnetLayer3(stride=2)->resnetLayer4(stride=2)
-        self.resnetBlock4 = nn.Sequential(*resnet[6:8])
+        # NOTE: dimensions mismatched at the reshaping step when using 2 extra downsamples from resnet
+        #       so the last layer of resnet is omitted !!assumption!!
+        # self.resnetBlock4 = nn.Sequential(*resnet[6:8]) 
+        self.resnetBlock4 = nn.Sequential(*resnet[6:7])
 
         # Transformer
-        # self.transformer = TransformerBlock(...)
+        self.transformer = VisionTransformer(
+            # img_size=7, # = final output dim of resnet after the downsampling
+            img_size=14, # = final output dim of resnet after the downsampling
+            patch_size=1, # [paper 3.2]
+            # in_chans=2048, # = final output channels of resnet
+            in_chans=1024, # = final output channels of resnet
+            n_classes=9,
+            embed_dim=768, # [paper]
+            depth=12, # [paper]
+            n_heads=12 # [paper]
+        )
 
         # Reshape block
         self.reshapeBlock = ReshapeBlock(
@@ -175,17 +194,17 @@ class TransUNet(nn.Module):
             in_channels=512,
             out_channels=256,
             skip_channels=512 # from resnetBlock3
-        ),
+        )
         self.decoderBlock2 = DecoderBlock(
             in_channels=256,
             out_channels=128,
             skip_channels=256 # from resnetBlock2
-        ),
+        )
         self.decoderBlock3 = DecoderBlock(
             in_channels=128,
             out_channels=64,
             skip_channels=64 # from resnetBlock1
-        ),
+        )
         self.decoderBlock4 = DecoderBlock(
             in_channels=64,
             out_channels=16,
@@ -194,8 +213,7 @@ class TransUNet(nn.Module):
 
         # Segmentation head
         self.segmentationHead = SegmentationHead(
-            # in_channels=16,
-            in_channels=2048,
+            in_channels=16,
             out_channels=9 # NOTE: assumption because using 9 classes
         )
 
@@ -208,27 +226,20 @@ class TransUNet(nn.Module):
         x1 = self.resnetBlock1(x)
         x2 = self.resnetBlock2(x1)
         x3 = self.resnetBlock3(x2)
-        x  = self.resnetBlock4(x3) 
+        x  = self.resnetBlock4(x3)
 
-        # # Transformer
-        # x = self.transformer(x)
+        # Transformer
+        x = self.transformer(x)
 
-        # # Reshape
-        # x = self.reshapeBlock(x)
+        # Reshape
+        x = self.reshapeBlock(x)
 
-        # # Decoder
-        # x = self.decoderBlock1(x, skip=x3)
-        # x = self.decoderBlock2(x, skip=x2)
-        # x = self.decoderBlock3(x, skip=x1)
-        # x = self.decoderBlock4(x, skip=None)
+        # Decoder
+        x = self.decoderBlock1(x, skip=x3)
+        x = self.decoderBlock2(x, skip=x2)
+        x = self.decoderBlock3(x, skip=x1)
+        x = self.decoderBlock4(x, skip=None)
 
-        test = nn.Upsample(
-            scale_factor=32,
-            mode='bilinear',
-            align_corners=False
-        )
-        x = test(x)
-        
         # Segmentation head
         x = self.segmentationHead(x)
 

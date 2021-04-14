@@ -31,10 +31,10 @@ class Synapse(data.Dataset):
         # Get the data filepaths
         if self.mode.lower() == 'train':
             self.data_list = [f for f in glob.glob(data_dir+'/*.npz')]
-            self.data_list = self.data_list[0:5] # for debugging
+            # self.data_list = self.data_list[0:10] # for debugging
         elif self.mode.lower() == 'test':
             self.data_list = [f for f in glob.glob(data_dir+'/*.npy.h5')]
-            self.data_list = self.data_list[4:5] # for debugging
+            # self.data_list = self.data_list[4:5] # for debugging
 
     def __getitem__(self, i):
         """

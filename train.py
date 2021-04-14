@@ -37,14 +37,13 @@ config = OrderedDict(
     # === OPTIMIZER ===
     batch_size=24, # [paper 4.2]
     max_iterations = 14000, # [paper 4.2]
-    # epochs=30,
+    # epochs=30, # default assumption
     epochs=5, # for debugging
     # num_workers=8,
     learning_rate=0.01, # [paper 4.2]
     momentum=0.01, # [paper 4.2]
     weight_decay=0.0001, # [paper 4.2]
 )
-
 
 def main():
     # Set the seed
@@ -86,7 +85,7 @@ def main():
         train_loss = train(epoch, train_loader, model, optimizer, criterion)
 
         # Test on data
-        test_loss = test(epoch, test_loader, model)
+        # test_loss = test(epoch, test_loader, model)
 
         # Metrics
         writer.add_scalars("Loss", {"Train": train_loss}, epoch)
@@ -94,6 +93,7 @@ def main():
         # val_loss, val_acc = validate_epoch(val_loader, model,
         #                                 criterion, epoch)
 
+    torch.save(model.state_dict(), 'TransUnet_trained')
 
 def train(epoch, train_loader, model, optimizer, criterion):
     """ 
@@ -187,3 +187,26 @@ def test(epoch, test_loader, model):
 
 if __name__ == "__main__":
     main()
+
+    """ Manual tests: """
+    # torch.manual_seed(68)
+    # np.random.seed(68)
+
+    # dataset = Synapse(data_dir='dataset/Synapse/train_npz', mode='train')
+    # train_loader = DataLoader(dataset=dataset, batch_size=3)
+
+    # batch = next(iter(train_loader))
+    # img_batch = batch['image']
+    # label_batch = batch['label']
+
+    # model = TransUNet()
+    # model.load_state_dict(torch.load('TransUnet_trained'))
+    # output = model(img_batch)
+    # output = torch.argmax(torch.softmax(output, dim=1), dim=1)
+
+    # fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
+    # i = 0
+    # ax1.imshow(img_batch[i][0], cmap='gray')
+    # ax2.imshow(output[i], cmap='gnuplot')
+    # ax3.imshow(label_batch[i][0], cmap='gnuplot')
+    # plt.show()
