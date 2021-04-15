@@ -2,7 +2,13 @@
 
 ## Introduction
 
++In this blogpost the reader will be walked through the process of reproducing the model from the paper  "TransUNet: Transformers Make Strong Encoders for Medical Image Segmentation". The reproducibility of the model was done withouth looking at the code from the paper. When the paper mentioned that they implemented code out other papers, for this reporducability this was done as well. 
+
+The blog post will now explain the architecture of the TransUNet and  will then go over the different steps that were taken in the reproducibility process. 
+
 ## TransUNet Architecture
+In the figure below the full TransUNet architecture is visualized. This figure was the main point of focus when reproducing the paper as it showed the different steps that needed to be taken to reproduce the TransUNet whereas the paper itself was used to have the details of the different parts. From the figure you can the TransUNet constists out of the CNN encoder, the Transformer Encoder and the right half (decoder) of the UNet model, these three different parts are then reproduced and merged to get the TransUNet code. 
+
 ![](/figs/architecture.png)
 
 ## Reproducing The Cascaded Decoder (UNet)
@@ -106,11 +112,47 @@ resnetBlock4 = nn.Sequential(*resnet[6:7])
 
 ## Reproducing Transformer Encoder
 
-From the CNN encoder that was reproduced in the section before, the output of this CNN can now be used to create the embedded space which is used as input to the transformer.
- 
-The transformer encoder from the TransUnet is implimented from the paper An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' - https://arxiv.org/abs/2010.11929 . 
-This paper is therefore also studied and used for the reproducability of the TransUNet paper, as the original code is written for Tensorflow, it is now to us to convert it to PyTorch.
-For this Pytorch implementation a github libary was found '''ref this'''. This libary is used as a the main help for this implementation. 
++After the reporducing of the CNN encode the next part that needed to be done was the transformer encoder. The transformer encoder from the TransUnet is implemented from the paper An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' [^vit_transformer]. 
+
+
+This paper is therefore also studied and used for the reproducability of the TransUNet paper, as the original code is written for Tensorflow, it is now to us to convert it to PyTorch. For this Pytorch implementation a github libary was found [^Vit_pytorch_implementation]. This libary is used as a the main help for this implementation. 
+
+When looking back to figure 1, the part that now will be implemented is the green block. 
+
+First the embedding space needs to be created, here the image will be split into patchs and then they will be imbedded. In the code one could see this by looking at the class PatchEmbed
+
+``` python
+class PatchEmbed(nn.Module):
+    """Split image into patches and then embed them.
+    """
+    def __init__(self, img_size, patch_size, in_chans=3, embed_dim=768):
+        super().__init__()
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.n_patches = (img_size // patch_size) ** 2
+
+        # This is the linear porjection
+        self.proj = nn.Conv2d(
+                in_chans,
+                embed_dim,
+                kernel_size=patch_size,
+                stride=patch_size,
+        )
+
+    def forward(self, x):
+        """Run forward pass.
+        """
+        x = self.proj(
+                x
+            )  
+        x = x.flatten(2)  
+        x = x.transpose(1, 2)  
+
+        return x
+
+```
+
+The next class that needs to be done is the transformer layer. This transformer layers will consist
 
 
 ## Final Reproduced TransUNet
