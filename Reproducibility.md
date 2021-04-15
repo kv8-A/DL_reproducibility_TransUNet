@@ -146,15 +146,21 @@ class Synapse(data.Dataset):
 ```
 
 ## Training and Validation
-To check the workings of the reproduced model, it is trained according to the parameters in the paper. For the training procedure, the paper mentiones a number of hyperparameters. The SGD optimiser is used with learning rate 0.01, momentum 0.9 and weight decay 1e-4. The loss function was not mentioned in the paper, so here, the standard of crossentropy loss is used for the training. Finally a batch size of 24 is mentioned in the paper. The training procedure has then been setup up according to this as can be seen in `train.py`.
+To check the workings of the reproduced model, it is trained according to the parameters in the paper. For the training procedure, the paper mentiones a number of hyperparameters. The SGD optimiser is used with learning rate 0.01, momentum 0.9 and weight decay 1e-4. The loss function was not mentioned in the paper, so here, the standard of crossentropy loss is used for the training. Finally a batch size of 24 is mentioned in the paper, and the training happens on 9 classes, 8  organs and the zero class. The training procedure has then been setup according to this as can be seen in `train.py`.
 
 ### Training difficulties
-When initially trying to train the model, our hardware seemed to struggle with the dataset. Uut of memory erros were occuring when using the batch size of 24 stated in the paper. In order to train the model, the batch size had to be reduced to 10 on the 2080 super max-Q GPU that was avilable for training. Training using the full training dataset of 2211 samples could then be performed in around 2 hours on 30 epochs.
+When initially trying to train the model, our hardware seemed to struggle with the dataset. Out of memory erros were occuring when using the batch size of 24 stated in the paper. In order to train the model, the batch size had to be reduced to 10 on the 2080 super max-Q GPU that was avilable for training. Training using the full training dataset of 2211 samples could then be performed in around 2 hours on 30 epochs.
 
 Due to time limits, not a lot of in depth development could be done on reproducing the excact training procedure of the paper and dubugging the outcome of the trained model. The focus of this reproduction was put on understanding the architectures of the three main parts of this network, UNet, ResNet and ViT.
 
 ### Training results
-Due to time limits, the valudation run could not be performed using the validation samples, so noo validation loss can be given. To judge the outcome of the model, the segmentation on a set of the training images can be analysed and compared to the labels.
+Due to time limits, the valudation run could not be performed using the validation samples, so no validation loss can be given. To judge the outcome of the model, the segmentation on a set of the training images can be analysed and compared to the labels.
+
+Here, the loss progression of the training procudure can be seen over the 30 epochs. As can be seen, the loss does decrease and indicates a working optimization implementation. However, this can not be directly compared to the results of the paper as there they do not give the training loss curves but give more elaborate metrics using the Dice score coefficient and Hausdorff Distance. These metrics could not be implemented in the reproduction as it requires more focus on the training implementation.
+
+
+
+To look at the segmentation, the softmax and argmax of the 9 channel outcome is used, as commonly done with segmentation outputs (see `test.py`). This should give the same dimension as the labels and can be plotted for comparison. Below, 4 samples can be seen, with the input image on the left, the label on the right, and the reproduced network outcome in the middle. As can be seen from these images, the classification has failed for these images. The network seems to mereg all the segmented areas in one class. The reason for this could be a mistake in the network architecture, like the segmentation head, were the 9 classes are extracted. Or also the training precure could be elaborated upan and dubugged more to find the cause of the segmentation errors. However it can also be seen that the network does somewhat succesfully identify the location of the organs in the scans, aside from some missing organs in the segmentation. The contours match somewhat closely with the organ labels, indicating an error in mainly the classification, but also still in the segmentaion due to some missing organs in the output.
 
 ![](/figs/Figure_1.png)
 
