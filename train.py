@@ -16,11 +16,6 @@ import torchvision
 """
 From [paper 4.1]:
 
-Metrics:
-    - dice score DSC for each organ [%]
-    - average dice score DSC [%]
-    - average hausdorff distance [mm]
-
 8 organs (=> 9 classes)
 
 Training: 18 cases - 2211 total slices NOTE: sais 2212, but we recieved 2211
