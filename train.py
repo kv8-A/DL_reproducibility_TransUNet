@@ -35,10 +35,10 @@ config = OrderedDict(
     n_classes=9,
 
     # === OPTIMIZER ===
-    batch_size=24, # [paper 4.2]
+    batch_size=10, # [paper 4.2]
     max_iterations = 14000, # [paper 4.2]
     # epochs=30, # default assumption
-    epochs=5, # for debugging
+    epochs=30, # for debugging
     # num_workers=8,
     learning_rate=0.01, # [paper 4.2]
     momentum=0.01, # [paper 4.2]
@@ -63,7 +63,8 @@ def main():
     if torch.cuda.is_available():
         model = model.cuda()
         print('Models pushed to {} GPU(s), type {}.'.format(torch.cuda.device_count(), torch.cuda.get_device_name(0)))
-
+    print(torch.cuda.get_device_name(torch.cuda.current_device()))
+    
     # Define optimizer
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -111,8 +112,8 @@ def train(epoch, train_loader, model, optimizer, criterion):
     for i, batch in enumerate(train_loader):
 
         # Get batch data
-        img_batch = batch['image']
-        label_batch = batch['label']
+        img_batch = batch['image'].cuda()
+        label_batch = batch['label'].cuda()
         
         # Zero the parameter gradients
         optimizer.zero_grad()
@@ -185,8 +186,13 @@ def test(epoch, test_loader, model):
     return 0
 
 
+
 if __name__ == "__main__":
+    
+    
     main()
+    
+
 
     """ Manual tests: """
     # torch.manual_seed(68)
