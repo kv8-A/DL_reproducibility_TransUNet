@@ -146,6 +146,23 @@ class Synapse(data.Dataset):
 ```
 
 ## Training and Validation
+To check the workings of the reproduced model, it is trained according to the parameters in the paper. For the training procedure, the paper mentiones a number of hyperparameters. The SGD optimiser is used with learning rate 0.01, momentum 0.9 and weight decay 1e-4. The loss function was not mentioned in the paper, so here, the standard of crossentropy loss is used for the training. Finally a batch size of 24 is mentioned in the paper. The training procedure has then been setup up according to this as can be seen in `train.py`.
+
+### Training difficulties
+When initially trying to train the model, our hardware seemed to struggle with the dataset. Uut of memory erros were occuring when using the batch size of 24 stated in the paper. In order to train the model, the batch size had to be reduced to 10 on the 2080 super max-Q GPU that was avilable for training. Training using the full training dataset of 2211 samples could then be performed in around 2 hours on 30 epochs.
+
+Due to time limits, not a lot of in depth development could be done on reproducing the excact training procedure of the paper and dubugging the outcome of the trained model. The focus of this reproduction was put on understanding the architectures of the three main parts of this network, UNet, ResNet and ViT.
+
+### Training results
+Due to time limits, the valudation run could not be performed using the validation samples, so noo validation loss can be given. To judge the outcome of the model, the segmentation on a set of the training images can be analysed and compared to the labels.
+
+![](/figs/Figure_1.png)
+
+![](/figs/Figure_2.png)
+
+![](/figs/Figure_3.png)
+
+![](/figs/Figure_4.png)
 
 ## Bibliography
 
