@@ -82,7 +82,7 @@ class ReshapeBlock(nn.Module):
 The first part of the TransUNet encoder is a CNN, in this case it is ResNet-50 [^transunet]. The paper mentiones that ResNet-50 is pretrained on ImageNet. Conveniently, PyTroch contains a pretrained ResNet50 on ImageNet, which will be used here. This CNN also needs to provide the skip connections to the decoder. Fig1 of the paper shows 3 blocks in the CNN encoder part which represent 3 high level layers of the ResNet from which the skip connections are output.
 The paper does not go in a lot of detail about the ResNet implementation, so the only information we have to determine which layers of ResNet these are is that every skip connection has a certain resolution scale. ResNet uses stride=2 convolution layers to downsample, so looking at the structure of the PyTroch ResNet the correct high level layers should be derived.
 
-First of all, only the feature extractors of ResNet are needed, so the last 2 layers which act as the classifiers, `AdaptiveAvgPool2d` and `Linear`, can be discarded. Next, the suitable layers of ResNet need to be split up in blocks so the skip output can be passed to the decoder later. When looking at the layers, there are more downsampling steps in ResNet-50 than are needed for the skip connections, 5 to be excact: `Conv2d(s=2)`, `MaxPool2d(s=2)`, `Conv2d(s=2)`, `Conv2d(s=2)` and `Conv2d(s=2)` in that order. Assumptions need to be made on how to split up the layers. Here is is assumed that the entire ResNet-50 layer count needs to be preserved, so that results in 4 blocks in total. The first 3 blocks contain one downsampling step each and are the blocks presented in Fig1 of the paper. The last block contains the remaining two downsampling steps and will be included in the CNN, but will not provide skip connections. The blocks are splitted right before the downsamplign step of the next block.
+First of all, only the feature extractors of ResNet are needed, so the last 2 layers which act as the classifiers, `AdaptiveAvgPool2d` and `Linear`, can be discarded. Next, the suitable layers of ResNet need to be split up in blocks so the skip output can be passed to the decoder later. When looking at the layers, there are more downsampling steps in ResNet-50 than are needed for the skip connections, 5 to be excact: `Conv2d(s=2)`, `MaxPool2d(s=2)`, `Conv2d(s=2)`, `Conv2d(s=2)` and `Conv2d(s=2)` in that order. Assumptions need to be made on how to split up the layers. Here is is assumed that the entire ResNet-50 layer count needs to be preserved, so that results in 4 blocks in total. The first 3 blocks contain one downsampling step each and are the blocks presented in Fig1 of the paper. The last block contains the remaining two downsampling steps and will be included in the CNN, but will not provide skip connections. The blocks are splitted right before the downsamplign step of the next block. Note that incompatible dimensions arised when running the network. This was due to too many downsampming that is happening in the ResNet. The reference from the paper, only Figure 1, does not provide enough inmformation to debug this incompatibility as it only shows the 3 blocks of resnet, bot also mention the ResNet-50 using 50 layers is used. To solve this, the assumption is made to ommit the last high level layer of the ResNet, containing the extra downsampling step causing the problems. This results in compatible down and later upsampling.
 
 With the CNN blocks defined, also the input channels for the cascaded decoder can be determined by looking at the output channel count of the three first blocks. This results in the following skip channels: 64 - 256 - 512
 
@@ -100,8 +100,8 @@ resnetBlock1 = nn.Sequential(*resnet[0:3]) # -> 64 channels
 resnetBlock2 = nn.Sequential(*resnet[3:5]) # -> 256 channels
 # resnetLayer2(stride=2)
 resnetBlock3 = nn.Sequential(*resnet[5])   # -> 512 channels
-# resnetLayer3(stride=2)->resnetLayer4(stride=2)
-resnetBlock4 = nn.Sequential(*resnet[6:8])
+# resnetLayer3(stride=2)
+resnetBlock4 = nn.Sequential(*resnet[6:7])
 ```
 
 ## Reproducing Transformer Encoder
@@ -114,8 +114,64 @@ For this Pytorch implementation a github libary was found '''ref this'''. This l
 
 
 ## Final Reproduced TransUNet
+The several building block of the 3 main netowrk parts: UNet, ResNet and ViT, are put together in the main TransUNet network class. The pseudocode for this class can be seen below and shows how the blocks are defined and used together. First, ResNet accepts the image input and generates the feature maps from it. Then this gets patch embedded and the transformer takes over. After the transformer steps, the reshape block reshapes after which the UNet upsample produces the final output of 9 classes/channels. The main reference for this architecture is the Figure 1 of the paper, which mentiones both the dimensions and structure of the network.
 
 ```python
+# model/TransUNet.py
+
+class TransUNet(nn.Module):
+    def __init__(self):
+        self.resnetBlock1 = resnetBlock1
+        self.resnetBlock2 = resnetBlock1
+        self.resnetBlock3 = resnetBlock1
+        self.resnetBlock4 = resnetBlock1
+
+        self.transformer = VisionTransformer
+
+        self.reshapeBlock
+
+        self.decoderBlock1 = DecoderBlock(
+            in_channels=512,
+            out_channels=256,
+            skip_channels=512
+        )
+        self.decoderBlock2 = DecoderBlock(
+            in_channels=256,
+            out_channels=128,
+            skip_channels=256
+        )
+        self.decoderBlock3 = DecoderBlock(
+            in_channels=128,
+            out_channels=64,
+            skip_channels=64
+        )
+        self.decoderBlock4 = DecoderBlock(
+            in_channels=64,
+            out_channels=16,
+            skip_channels=0
+        )
+
+        self.segmentationHead = SegmentationHead
+
+    
+    def forward(self, x):
+        x1 = self.resnetBlock1(x)
+        x2 = self.resnetBlock2(x1)
+        x3 = self.resnetBlock3(x2)
+        x  = self.resnetBlock4(x3)
+
+        x = self.transformer(x)
+
+        x = self.reshapeBlock(x)
+
+        x = self.decoderBlock1(x, skip=x3)
+        x = self.decoderBlock2(x, skip=x2)
+        x = self.decoderBlock3(x, skip=x1)
+        x = self.decoderBlock4(x, skip=None)
+
+        x = self.segmentationHead(x)
+
+        return x
 ```
 
 ## The Dataset
