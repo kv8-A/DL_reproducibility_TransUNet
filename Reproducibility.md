@@ -21,59 +21,34 @@ Using this information and [^unetcode] a pytorch module can be coded that repres
 3. Cascading the skip connection
 4. ReLU
 
-There is however an inconsisticy between the UNet paper and TransUNet paper. In UNet every decoder block has an intermediate step resulting in two convoultions per block. Also UNet uses a batchnorm layer after every convolution. None of this is mentioned in [^transunet], so only the layers mentioned in 3.2 of [^transunet] are used in the `DecoderBlock`.
+There is however an inconsisticy between the UNet paper and TransUNet paper. In UNet every decoder block has an intermediate step resulting in two convoultions per block. Also UNet uses a batchnorm layer after every convolution. None of this is mentioned in [^transunet], so only the layers mentioned in 3.2 of [^transunet] are used in the `DecoderBlock`. See the pseudocode underneath for the structure that is used for the decoder block.
 
 ```python
+# model/TransUNet.py
+
 class DecoderBlock(nn.Module):
     def __init__(self, in_channels, out_channels, skip_channels):
-        super().__init__()
-        
-        # 2x Bilinear upsampling
-        self.upsample = nn.Upsample(
-            scale_factor=2,
-            mode='bilinear'
-        )
-        # 3x3 Convolutional, accepting the skip connection
-        self.conv = nn.Conv2d(
-            in_channels=(in_channels+skip_channels),
-            out_channels=out_channels,
-            kernel_size=3,
-            padding=1,
-            stride=1
-        )
-        # ReLU activation
-        self.relu = nn.ReLU()
+        self.upsample = 2x bilinear upsampling
+        self.conv = 3x3 2d convolutional, in_channels -> out_channels + skip_channels
+        self.relu = ReLU
 
     def forward(self, x, skip):
-        # Upsample
         x = self.upsample(x)
-        # Add skip connection
-        if skip != None: x = torch.cat([x, skip], dim=1)
-        # Conv
+        concatenate skip connection to x
         x = self.conv(x)
-        # ReLU
         x = self.relu(x)
+
+        return x
 ```
 
-After these upsampling block, a final convolution acts as the segmentation head, just like in UNet. The TransUNet paper mentions a 1x1 convolution that outputs the number of classes as output channels. This corresponds with a standard UNet segmentation head and is thus implemented accordingly in `SegmentationHead`.
+After these upsampling block, a final convolution acts as the segmentation head, just like in UNet. The TransUNet paper mentions a 1x1 convolution that outputs the number of classes as output channels. This corresponds with a standard UNet segmentation head and is thus implemented accordingly in `SegmentationHead`. See the pseudocode underneath for the structure that is used for the segmentation head.
 
 ```python
+# model/TransUNet.py
+
 class SegmentationHead(nn.Module):
-    """ 
-    The segmentation head
-    """
-
     def __init__(self, in_channels, out_channels):
-        super().__init__()
-
-        # Single convolutional layer
-        self.conv = nn.Conv2d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=1,
-            padding=0,
-            stride=1
-        )
+        self.conv = 1x1 2d convolution, in_channels -> out_channels
 
     def forward(self, x):
         x = self.conv(x)
@@ -81,37 +56,23 @@ class SegmentationHead(nn.Module):
         return x
 ```
 
-Next to the decoder blocks, a reshaping step takes place before passing the data to the cascaded decoder. This reshape step is described in the paper as reshaping the feature from one dimension of `n_patches` to two dimensions of `H/P x W/P` with `P` the patch size. The `ReshapeBlock` also implements the additional convolution shown in Fig1 of the paper.
+Next to the decoder blocks, a reshaping step takes place before passing the data to the cascaded decoder. This reshape step is described in the paper as reshaping the feature from one dimension of `n_patches` to two dimensions of `H/P x W/P` with `P` the patch size. The `ReshapeBlock` also implements the additional convolution shown in Fig1 of the paper. The pseudocode underneath shows the structure that is used for the reshape block.
 
 ```python
+# model/TransUNet.py
+
 class ReshapeBlock(nn.Module):
-    """
-    Reshapes the output of the transformer encoder
-    """
-
     def __init__(self, in_channels, out_channels):
-        super().__init__()
-
-        # 3x3 Convolution
-        self.conv = nn.Conv2d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            padding=1,
-            stride=1
-        )
-        # ReLU activation
-        self.relu = nn.ReLU()
+        self.conv = 3x3 2d convolution, in_channels -> out_channels
+        self.relu = ReLU
     
     def forward(self, x):
-        # Reshape
-        N, n_patch, D = x.size() # [paper Fig1]
-        h_P = int(np.sqrt(n_patch)) # H/P [paper 3.1]
-        x = x.view(N, h_P, h_P, D) # reshape using value for H/P (W/P = H/P)
-        x = x.permute(0, 2, 3, 1) # reorder dimensions according to [paper Fig1]
-        # Conv
+        get dimensions of x -> N, n_patch, D
+        get value of new dimension H/P = sqrt(n_patch)
+        reshape x using H/P
+        reorder dimensions of x according to Fig1 of the paper 
+        
         x = self.conv(x)
-        # ReLU
         x = self.relu(x)
 
         return x
@@ -126,6 +87,8 @@ First of all, only the feature extractors of ResNet are needed, so the last 2 la
 With the CNN blocks defined, also the input channels for the cascaded decoder can be determined by looking at the output channel count of the three first blocks. This results in the following skip channels: 64 - 256 - 512
 
 ```python
+# model/TransUNet.py
+
 # Encoder blocks: ResNet-50
 resnet = torchvision.models.resnet50(pretrained=True)
 # Observe the location of the downsampling layers
@@ -160,71 +123,26 @@ The dataset the paper uses for the Table1 experiments is the Synapse multi-organ
 
 The dataset is randomly split into 18 scans (2211 slices) for training and 12 scans (1568 slices) for validation. The raw dataset is available from Synapse directly [^synapse], however this paper performed preprocessing on the data which makes it workable in pytorch. The preprocedd data was provided by the authors and consists of `.npz` files for the training, being one singel channel image and label per file. The validation data are `.npy.h5` files being a batch of singel channel images and labels per file (one scan).
 
-The dataset is implemented in PyTorch and can read the numpy compatible files from a specified directory. Note that the paper also specifies that random transformations are performed on the data, these are random roration and random flipping, the latter is assumed to be both horizontal and vertical flipping. These transformations are also implemented in the dataset.
+The dataset is implemented in PyTorch and can read the numpy compatible files from a specified directory. Note that the paper also specifies that random transformations are performed on the data, these are random roration and random flipping, the latter is assumed to be both horizontal and vertical flipping. These transformations are also implemented in the dataset. The pseudocode below shows how the dataset class is constructed.
 
 ```python
-class Synapse(data.Dataset):
-    """Dataset loader.
-    - root_dir (``string``): Data root directory path.
-    - mode (``string``): train or test
-    """
+# dataset/Synapse.py
 
+class Synapse(data.Dataset):
     def __init__(self, data_dir, mode):
-        # Data root dir
-        self.data_dir = data_dir
-        # Mode
-        self.mode = mode
-        # Transforms
-        """ Random roration and flipping as mentioned in [paper 4.2] """
-        self.transforms = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.RandomRotation(degrees=90),
-            transforms.RandomVerticalFlip(),
-            transforms.RandomHorizontalFlip(),
-            transforms.Resize((224, 224)) # also resize to 224x224
+        self.transforms = [
+            random rotation,
+            random vertical flip,
+            random horizontal flip,
+            resize to 224, 224
         ])
-        # Get the data filepaths
-        if self.mode.lower() == 'train':
-            self.data_list = [f for f in glob.glob(data_dir+'/*.npz')]
-        elif self.mode.lower() == 'test':
-            self.data_list = [f for f in glob.glob(data_dir+'/*.npy.h5')]
+        self.data_list = get list of filenames from data_dir (to not load everything in memory at once)
 
     def __getitem__(self, i):
-        """
-        - index (``int``): index of the item in the dataset
-        """
+        get the image and label at the self.data_list[i] 
+        apply self.transforms to image and label
 
-        if self.mode.lower() == 'train':
-            # Load the images at the filepath
-            data = np.load(self.data_list[i])
-            img = data['image']
-            label = data['label']
-            # Apply transforms
-            rng_state = torch.get_rng_state()
-            img = self.transforms(img)
-            torch.set_rng_state(rng_state)
-            label = self.transforms(label)
-            
-        elif self.mode.lower() == 'test':
-            # Load the images at the filepath
-            data = h5py.File(self.data_list[i], 'r')
-            img = data['image'][:]
-            label = data['label'][:]
-            # Apply transforms on every slice
-            rng_state = torch.get_rng_state()
-            img = torch.cat(
-                [self.transforms(img_slice) for img_slice in img]
-            ).unsqueeze(1) # unsqueeze to add the 1 channel
-            torch.set_rng_state(rng_state)
-            label = torch.cat(
-                [self.transforms(label_slice) for label_slice in label]
-            ).unsqueeze(1) # unsqueeze to add the 1 channel
-
-        return img, label
-        
-    def __len__(self):
-        """Returns the length of the dataset."""
-        return len(self.data_list)
+        return image, label
 ```
 
 ## Training and Validation
