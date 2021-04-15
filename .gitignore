@@ -12,3 +12,5 @@ temp.py
 # Datasets
 dataset/Synapse/*
 dataset/Synapse.zip
+
+TransUnet_trained
