@@ -1,7 +1,8 @@
 # Python environment
 env
 **/__pycache__
-runs
+
+# runs
 
 # Editor 
 .vscode
