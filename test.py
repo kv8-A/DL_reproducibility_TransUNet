@@ -11,7 +11,6 @@ from dataset.Synapse import Synapse
 from model.TransUNet import TransUNet
 from utils.logging import AverageMeter, ProgressMeter
 from tqdm import tqdm
-from medpy import metric
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import torchvision
