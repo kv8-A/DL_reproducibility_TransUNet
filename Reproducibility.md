@@ -1,8 +1,13 @@
 # TransUNet Reproducibility Report
+Paper authors: Jieneng Chen, Yongyi Lu, Qihang Yu, Xiangde Luo, Ehsan Adeli, Yan Wang, Le Lu, Alan L. Yuille, and Yuyin Zhou
+
+Kjell Vleeschouwer 0000000
+
+Casper Teirlinck 4680723
 
 ## Introduction
 
-+In this blog post, the reader will be walked through the process of reproducing the model from the paper  "TransUNet: Transformers Make Strong Encoders for Medical Image Segmentation". The reproducibility of the model was done without looking at the code from the paper. When the paper mentioned that they implemented code out other papers, for this reproducibility this was done as well. 
+In this blog post, the reader will be walked through the process of reproducing the model from the paper  "TransUNet: Transformers Make Strong Encoders for Medical Image Segmentation". The reproducibility of the model was done without looking at the code from the paper. When the paper mentioned that they implemented code out other papers, for this reproducibility this was done as well. 
 
 The blog post will now explain the architecture of the TransUNet and will then go over the different steps that were taken in the reproducibility process. 
 
