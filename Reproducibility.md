@@ -2,17 +2,17 @@
 
 ## Introduction
 
-+In this blogpost the reader will be walked through the process of reproducing the model from the paper  "TransUNet: Transformers Make Strong Encoders for Medical Image Segmentation". The reproducibility of the model was done withouth looking at the code from the paper. When the paper mentioned that they implemented code out other papers, for this reporducability this was done as well. 
++In this blog post, the reader will be walked through the process of reproducing the model from the paper  "TransUNet: Transformers Make Strong Encoders for Medical Image Segmentation". The reproducibility of the model was done without looking at the code from the paper. When the paper mentioned that they implemented code out other papers, for this reproducibility this was done as well. 
 
-The blog post will now explain the architecture of the TransUNet and  will then go over the different steps that were taken in the reproducibility process. 
+The blog post will now explain the architecture of the TransUNet and will then go over the different steps that were taken in the reproducibility process. 
 
 ## TransUNet Architecture
-In the figure below the full TransUNet architecture is visualized. This figure was the main point of focus when reproducing the paper as it showed the different steps that needed to be taken to reproduce the TransUNet whereas the paper itself was used to have the details of the different parts. From the figure you can the TransUNet constists out of the CNN encoder, the Transformer Encoder and the right half (decoder) of the UNet model, these three different parts are then reproduced and merged to get the TransUNet code. 
+In the figure below the full TransUNet architecture is visualized. This figure was the main point of focus when reproducing the paper as it showed the different steps that needed to be taken to reproduce the TransUNet whereas the paper itself was used to have the details of the different parts. From the figure you can the TransUNet consists out of the CNN encoder, the Transformer Encoder and the right half (decoder) of the UNet model, these three different parts are then reproduced and merged to get the TransUNet code. 
 
 ![](/figs/architecture.png)
 
 ## Reproducing The Cascaded Decoder (UNet)
-TransUNet’s decoder is presented in the paper as the decoder part of UNet, shown in Fig1 of the paper as the right hand side of the network. Its task is to decode and upsample the encoded features that come out of the hybrid CNN-Transformer encoder. Just like in UNet skip connections are introduced in order to preserve information across the resolution scales. For reproducing this part of the network, we solely use the information provided in the paper, the reference paper of UNet [^unet] and reference code of UNet implementation in PyTorch [^unetcode].
+TransUNet’s decoder is presented in the paper as the decoder part of UNet, shown in Fig1 of the paper as the right-hand side of the network. Its task is to decode and upsample the encoded features that come out of the hybrid CNN-Transformer encoder. Just like in UNet skip connections are introduced in order to preserve information across the resolution scales. For reproducing this part of the network, we solely use the information provided in the paper, the reference paper of UNet [^unet] and reference code of UNet implementation in PyTorch [^unetcode].
 
 From Fig1 of the paper the UNet architecture can be derived as follows:
 - The decoder consists of 4 main upsampling blocks.
@@ -21,13 +21,13 @@ From Fig1 of the paper the UNet architecture can be derived as follows:
 - The output channels of the decoder blocks are: 256 - 128 - 64 - 16 respectively.
 - There are 3 skip connections that originate from the CNN encoder (ResNet) at resolution scales ½, ¼ and ⅛ .
 
-Using this information and [^unetcode] a pytorch module can be coded that represents one decoder block. This decoder block then consists of:
+Using this information and [^unetcode] a PyTorch module can be coded that represents one decoder block. This decoder block then consists of:
 1. Bilinear 2x upsample
 2. 3x3 Conv2d
 3. Cascading the skip connection
 4. ReLU
 
-There is however an inconsisticy between the UNet paper and TransUNet paper. In UNet every decoder block has an intermediate step resulting in two convoultions per block. Also UNet uses a batchnorm layer after every convolution. None of this is mentioned in [^transunet], so only the layers mentioned in 3.2 of [^transunet] are used in the `DecoderBlock`. See the pseudocode underneath for the structure that is used for the decoder block.
+There is however an inconsistency between the UNet paper and TransUNet paper. In UNet every decoder block has an intermediate step resulting in two convolutions per block. Also UNet uses a batchnorm layer after every convolution. None of this is mentioned in [^transunet], so only the layers mentioned in 3.2 of [^transunet] are used in the `DecoderBlock`. See the pseudocode underneath for the structure that is used for the decoder block.
 
 ```python
 # model/TransUNet.py
@@ -85,10 +85,10 @@ class ReshapeBlock(nn.Module):
 ```
 
 ## Reproducing The CNN Encoder (ResNet)
-The first part of the TransUNet encoder is a CNN, in this case it is ResNet-50 [^transunet]. The paper mentiones that ResNet-50 is pretrained on ImageNet. Conveniently, PyTroch contains a pretrained ResNet50 on ImageNet, which will be used here. This CNN also needs to provide the skip connections to the decoder. Fig1 of the paper shows 3 blocks in the CNN encoder part which represent 3 high level layers of the ResNet from which the skip connections are output.
-The paper does not go in a lot of detail about the ResNet implementation, so the only information we have to determine which layers of ResNet these are is that every skip connection has a certain resolution scale. ResNet uses stride=2 convolution layers to downsample, so looking at the structure of the PyTroch ResNet the correct high level layers should be derived.
+The first part of the TransUNet encoder is a CNN, in this case, it is ResNet-50 [^transunet]. The paper mentions that ResNet-50 is pretrained on ImageNet. Conveniently, PyTorch contains a pretrained ResNet50 on ImageNet, which will be used here. This CNN also needs to provide the skip connections to the decoder. Fig1 of the paper shows 3 blocks in the CNN encoder part which represent 3 high-level layers of the ResNet from which the skip connections are output.
+The paper does not go into a lot of detail about the ResNet implementation, so the only information we have to determine which layers of ResNet these are is that every skip connection has a certain resolution scale. ResNet uses stride=2 convolution layers to downsample, so looking at the structure of the PyTorch ResNet the correct high-level layers should be derived.
 
-First of all, only the feature extractors of ResNet are needed, so the last 2 layers which act as the classifiers, `AdaptiveAvgPool2d` and `Linear`, can be discarded. Next, the suitable layers of ResNet need to be split up in blocks so the skip output can be passed to the decoder later. When looking at the layers, there are more downsampling steps in ResNet-50 than are needed for the skip connections, 5 to be excact: `Conv2d(s=2)`, `MaxPool2d(s=2)`, `Conv2d(s=2)`, `Conv2d(s=2)` and `Conv2d(s=2)` in that order. Assumptions need to be made on how to split up the layers. Here is is assumed that the entire ResNet-50 layer count needs to be preserved, so that results in 4 blocks in total. The first 3 blocks contain one downsampling step each and are the blocks presented in Fig1 of the paper. The last block contains the remaining two downsampling steps and will be included in the CNN, but will not provide skip connections. The blocks are splitted right before the downsamplign step of the next block. Note that incompatible dimensions arised when running the network. This was due to too many downsampming that is happening in the ResNet. The reference from the paper, only Figure 1, does not provide enough inmformation to debug this incompatibility as it only shows the 3 blocks of resnet, bot also mention the ResNet-50 using 50 layers is used. To solve this, the assumption is made to ommit the last high level layer of the ResNet, containing the extra downsampling step causing the problems. This results in compatible down and later upsampling.
+First of all, only the feature extractors of ResNet are needed, so the last 2 layers which act as the classifiers, `AdaptiveAvgPool2d` and `Linear`, can be discarded. Next, the suitable layers of ResNet need to be split up into blocks so the skip output can be passed to the decoder later. When looking at the layers, there are more downsampling steps in ResNet-50 than are needed for the skip connections, 5 to be exact: `Conv2d(s=2)`, `MaxPool2d(s=2)`, `Conv2d(s=2)`, `Conv2d(s=2)` and `Conv2d(s=2)` in that order. Assumptions need to be made on how to split up the layers. Here is assumed that the entire ResNet-50 layer count needs to be preserved, so that results in 4 blocks in total. The first 3 blocks contain one downsampling step each and are the blocks presented in Fig1 of the paper. The last block contains the remaining two downsampling steps and will be included in the CNN, but will not provide skip connections. The blocks are split right before the downsampling step of the next block. Note that incompatible dimensions arose when running the network. This was due to too many downsampling that is happening in the ResNet. The reference from the paper, only Figure 1, does not provide enough information to debug this incompatibility as it only shows the 3 blocks of resnet, bot also mentions the ResNet-50 using 50 layers is used. To solve this, the assumption is made to ommit the last high-level layer of the ResNet, containing the extra downsampling step causing the problems. This results in compatible down and later upsampling.
 
 With the CNN blocks defined, also the input channels for the cascaded decoder can be determined by looking at the output channel count of the three first blocks. This results in the following skip channels: 64 - 256 - 512
 
@@ -112,13 +112,13 @@ resnetBlock4 = nn.Sequential(*resnet[6:7])
 
 ## Reproducing Transformer Encoder
 
-After the reporducing of the CNN encode the next part that needed to be done was the transformer encoder. The transformer encoder from the TransUnet is implemented from the paper An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' [^vit_transformer].
+After the reproducing of the CNN encode the next part that needed to be done was the transformer encoder. The transformer encoder from the TransUNet is implemented from the paper An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' [^vit_transformer].
 
-The TransUNet paper states that the full implementation was done from the code of this paper whereafter this code was adjusted to the TransUNet architectuer. Therefore for the repprducability assigment it was decided to do the same, however because the ViT Trasformer is written by a google research team, this code was writtin for Tensorflow. Because for this reproducibility assigment it is expected to write the code with PyTorch, the github repository [^Vit_pytorch_implementation] was found. This repository was then used as the main help for this implementation. 
+The TransUNet paper states that the full implementation was done from the code of this paper whereafter this code was adjusted to the TransUNet architecture. Therefore for the reproducibility assignment, it was decided to do the same, however because the ViT Transformer is written by a Google research team, this code was written for Tensorflow. Because for this reproducibility assignment it is expected to write the code with PyTorch, the GitHub repository [^Vit_pytorch_implementation] was found. This repository was then used as the main help for this implementation. 
 
 When looking back to figure 1, the part that now will be implemented is the green block. 
 
-First the embedding space needs to be created, here the image will be split into patchs and then they will be imbedded. In the code one could see this by looking at the class PatchEmbed
+First, the embedding space needs to be created, where the image will be split into patches and then they will be embedded. In the code, one could see this by looking at the class PatchEmbed
 
 ``` python
 class PatchEmbed(nn.Module):
@@ -151,7 +151,7 @@ class PatchEmbed(nn.Module):
 
 ```
 
-The next class that needs to be done is the transformer layer, this is thus the yellow block in the architecture overview. This transformer layers will consist out of two layer norms, and a multi-head self attention layer and the multilayer perception. First the multihead self attention class was written and can be seen here below. 
+The next class that needs to be done is the transformer layer, this is thus the yellow block in the architecture overview. These transformer layers will consist out of two-layer norms, and a multi-head self attention layer and the multilayer perception. First the multihead self attention class was written and can be seen here below. 
 
 ``` python
 class Attention(nn.Module):
@@ -203,7 +203,7 @@ class Attention(nn.Module):
         return x
 ```
 
-And next the multilay perceptron was included, the class for this can also be seen here below. Something that should be noted that here one of the hidden layers has a Gaussian Linear Unit (GELU) activation function, this was not found in the paper and should therefore be seen as an assumption. 
+And next the multilayer perceptron was included, the class for this can also be seen here below. Something that should be noted that here one of the hidden layers has a Gaussian Linear Unit (GELU) activation function, this was not found in the paper and should therefore be seen as an assumption. 
 
 ``` python 
 class MLP(nn.Module):
@@ -237,7 +237,7 @@ class MLP(nn.Module):
         return x
 ```
 
-After writting the two classes above, the trasnformer layer needed to be connected, this was thus done exactly as visualized in figure one and can be seen in the code below. 
+After writing the two classes above, the transformer layer needed to be connected, this was thus done exactly as visualized in figure one and can be seen in the code below. 
 
 ``` python
 class Block(nn.Module):
@@ -267,11 +267,11 @@ class Block(nn.Module):
         x = x + self.mlp(self.norm2(x))
 ```
 
-To finalize the transformer encoder part, the transformer class needs to be written. This will now be done by first running the embedding class and after this passing the 'block' class. As the block code shall be passed 12 times as this is the depth of the transformer. In this class the first real deviation from the code in the github repository [^Vit_pytorch_implementation] is made, as the full vision transformer also has a classifier, which is something what will be done by the UNet decoder. Therefore the only thing that the tranformer class should output is the hidden feature and this is now done. 
+To finalize the transformer encoder part, the transformer class needs to be written. This will now be done by first running the embedding class and after this passing the 'block' class. As the block code shall be passed 12 times as this is the depth of the transformer. In this class, the first real deviation from the code in the GitHub repository [^Vit_pytorch_implementation] is made, as the full vision transformer also has a classifier, which is something that will be done by the UNet decoder. Therefore the only thing that the transformer class should output is the hidden feature and this is now done. 
 
 The code of the full vision transformer class can be seen here below. 
 
-Now that all parts of the TransUNet are created it is time to merge them toghether and start training and testing the network. 
+Now that all parts of the TransUNet are created it is time to merge them together and start training and testing the network. 
 
 ``` python
 class VisionTransformer(nn.Module):
@@ -335,7 +335,7 @@ class VisionTransformer(nn.Module):
 
 
 ## Final Reproduced TransUNet
-The several building block of the 3 main netowrk parts: UNet, ResNet and ViT, are put together in the main TransUNet network class. The pseudocode for this class can be seen below and shows how the blocks are defined and used together. First, ResNet accepts the image input and generates the feature maps from it. Then this gets patch embedded and the transformer takes over. After the transformer steps, the reshape block reshapes after which the UNet upsample produces the final output of 9 classes/channels. The main reference for this architecture is the Figure 1 of the paper, which mentiones both the dimensions and structure of the network.
+The several building blocks of the 3 main network parts: UNet, ResNet and ViT, are put together in the main TransUNet network class. The pseudocode for this class can be seen below and shows how the blocks are defined and used together. First, ResNet accepts the image input and generates the feature maps from it. Then this gets patch embedded and the transformer takes over. After the transformer steps, the reshape block reshapes after which the UNet upsample produces the final output of 9 classes/channels. The main reference for this architecture is Figure 1 of the paper, which mentions both the dimensions and structure of the network.
 
 ```python
 # model/TransUNet.py
