@@ -9,18 +9,12 @@ from dataset.Synapse import Synapse
 from model.TransUNet import TransUNet
 from utils.logging import AverageMeter, ProgressMeter
 from tqdm import tqdm
-from medpy import metric
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import torchvision
 
 """
 From [paper 4.1]:
-
-Metrics:
-    - dice score DSC for each organ [%]
-    - average dice score DSC [%]
-    - average hausdorff distance [mm]
 
 8 organs (=> 9 classes)
 
@@ -85,14 +79,8 @@ def main():
         # Train on data
         train_loss = train(epoch, train_loader, model, optimizer, criterion)
 
-        # Test on data
-        # test_loss = test(epoch, test_loader, model)
-
         # Metrics
         writer.add_scalars("Loss", {"Train": train_loss}, epoch)
-
-        # val_loss, val_acc = validate_epoch(val_loader, model,
-        #                                 criterion, epoch)
 
     torch.save(model.state_dict(), 'TransUnet_trained')
 
@@ -130,62 +118,10 @@ def train(epoch, train_loader, model, optimizer, criterion):
         loss.backward()
         optimizer.step()
 
-        # TODO: do some lr scheduling?
-
         # Metrics
         loss_running.update(loss.item())
 
     return loss_running.avg
-
-def test(epoch, test_loader, model):
-
-    # Metrics
-    loss_running = AverageMeter('Loss', ':.4e')
-
-    # Switch to testing mode
-    model.eval()
-    torch.set_grad_enabled(False)
-
-    # Batches loop
-    for i, batch in enumerate(test_loader):
-
-        # Get batch data
-        # img_batch = batch['image'][0] # [0] because batch of single volume
-        # label_batch = batch['label'][0]# [0] because batch of single volume
-        img_batch = batch['image'][0][50:51] # [0] because batch of single volume
-        label_batch = batch['label'][0][50:51] # [0] because batch of single volume
-
-        # Forward pass
-        output = model(img_batch)
-
-        # Loss
-        """ For the loss and validation metrics calculations, the source code of TransUNet has been referenced """
-        output = torch.argmax(torch.softmax(output, dim=1), dim=1) # convert output to single channel class labels
-        label_batch = label_batch.squeeze(1) # remove the 1 channel dim
-        n_classes = output.shape[1]
-        # Loop over batch
-        for i in range(output.shape[0]):
-            fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
-            ax1.imshow(img_batch[i][0], cmap='gray')
-            ax2.imshow(output[i], cmap='gnuplot')
-            ax3.imshow(label_batch[i], cmap='gnuplot')
-            plt.show()
-            # output[i]
-            # label_batch[i]
-            # for j in range(1, n_classes): # exclude the zero class
-                
-
-        # n_classes = output.shape[1]
-        # print(output.shape)
-        # print((output == 1).shape)
-        # for i in range(1, n_classes):
-        #     DSC = metric.binary.dc(pred, gt)
-        #     HD  = metric.binary.hd95(pred, gt)
-        # loss = criterion(output, label_batch.long())
-
-    return 0
-
-
 
 if __name__ == "__main__":
     main()
