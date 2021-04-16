@@ -474,3 +474,11 @@ An Image Is Worth 16x16 Words: Transformers for Image Recognition at Scale
 https://arxiv.org/pdf/2010.11929.pdf
 
 [^Vit_pytorch_implementation] https://github.com/jankrepl/mildlyoverfitted/tree/master/github_adventures/vision_transformer
+
+## Task Distribution
+
+| Task | Assigned |
+|---|---|
+| Transformers | Kjell Vleeschouwer |
+| ResNet & UNet | Casper Teirlinck |
+| Dataset & Training | Kjell Vleeschouwer & Casper Teirlinck |
