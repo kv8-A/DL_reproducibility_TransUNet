@@ -203,7 +203,7 @@ class Attention(nn.Module):
         return x
 ```
 
-And next the multilay perceptron was included, the class for this can also be seen here below. Something that should be noted that here one of the 
+And next the multilay perceptron was included, the class for this can also be seen here below. Something that should be noted that here one of the hidden layers has a Gaussian Linear Unit (GELU) activation function, this was not found in the paper and should therefore be seen as an assumption. 
 
 ``` python 
 class MLP(nn.Module):
@@ -235,6 +235,102 @@ class MLP(nn.Module):
         x = self.drop(x)  # (n_samples, n_patches + 1, hidden_features)
 
         return x
+```
+
+After writting the two classes above, the trasnformer layer needed to be connected, this was thus done exactly as visualized in figure one and can be seen in the code below. 
+
+``` python
+class Block(nn.Module):
+    def __init__(self, dim, n_heads, mlp_ratio=4.0, qkv_bias=True, p=0., attn_p=0.):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)    #This is the first layer norm
+        # This is the MSA 
+        self.attn = Attention(
+                dim,
+                n_heads=n_heads,
+                qkv_bias=qkv_bias,
+                attn_p=attn_p,
+                proj_p=p
+        )
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)   # second layer norm
+        hidden_features = int(dim * mlp_ratio)
+        # This is where the MLP layer comes in 
+        self.mlp = MLP(
+                in_features=dim,
+                hidden_features=hidden_features,
+                out_features=dim,
+        )
+
+    def forward(self, x):
+
+        x = x + self.attn(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
+```
+
+To finalize the transformer encoder part, the transformer class needs to be written. This will now be done by first running the embedding class and after this passing the 'block' class. As the block code shall be passed 12 times as this is the depth of the transformer. In this class the first real deviation from the code in the github repository [^Vit_pytorch_implementation] is made, as the full vision transformer also has a classifier, which is something what will be done by the UNet decoder. Therefore the only thing that the tranformer class should output is the hidden feature and this is now done. 
+
+The code of the full vision transformer class can be seen here below. 
+
+Now that all parts of the TransUNet are created it is time to merge them toghether and start training and testing the network. 
+
+``` python
+class VisionTransformer(nn.Module):
+   
+    def __init__(
+            self,
+            img_size=384,
+            patch_size=16,
+            in_chans=3,     # Should be 2048 with output from CNN
+            n_classes=1000,
+            embed_dim=768,
+            depth=12,           #This is 12 for TransUNet
+            n_heads=12,
+            mlp_ratio=4.,
+            qkv_bias=True,
+            p=0.,
+            attn_p=0.,
+    ):
+        super().__init__()
+
+        self.patch_embed = PatchEmbed(
+                img_size=img_size,
+                patch_size=patch_size,
+                in_chans=in_chans,
+                embed_dim=embed_dim,
+        )
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(
+                torch.zeros(1, 1 + self.patch_embed.n_patches, embed_dim)
+        )
+        self.pos_drop = nn.Dropout(p=p)
+
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    dim=embed_dim,
+                    n_heads=n_heads,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    p=p,
+                    attn_p=attn_p,
+                )
+                for _ in range(depth)
+            ]
+        )
+
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
+        self.head = nn.Linear(embed_dim, n_classes)
+
+
+    def forward(self, x):
+  
+        n_samples = x.shape[0]
+        x = self.patch_embed(x)
+
+       
+        for block in self.blocks:
+            x = block(x)
+
 ```
 
 
