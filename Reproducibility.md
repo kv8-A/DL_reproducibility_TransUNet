@@ -2,6 +2,7 @@
 Paper authors: Jieneng Chen, Yongyi Lu, Qihang Yu, Xiangde Luo, Ehsan Adeli, Yan Wang, Le Lu, Alan L. Yuille, and Yuyin Zhou
 
 Kjell Vleeschouwer 0000000
+
 Casper Teirlinck 4680723
 
 ## Introduction
