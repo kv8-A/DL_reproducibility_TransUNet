@@ -112,10 +112,9 @@ resnetBlock4 = nn.Sequential(*resnet[6:7])
 
 ## Reproducing Transformer Encoder
 
-+After the reporducing of the CNN encode the next part that needed to be done was the transformer encoder. The transformer encoder from the TransUnet is implemented from the paper An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' [^vit_transformer]. 
+After the reporducing of the CNN encode the next part that needed to be done was the transformer encoder. The transformer encoder from the TransUnet is implemented from the paper An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' [^vit_transformer].
 
-
-This paper is therefore also studied and used for the reproducability of the TransUNet paper, as the original code is written for Tensorflow, it is now to us to convert it to PyTorch. For this Pytorch implementation a github libary was found [^Vit_pytorch_implementation]. This libary is used as a the main help for this implementation. 
+The TransUNet paper states that the full implementation was done from the code of this paper whereafter this code was adjusted to the TransUNet architectuer. Therefore for the repprducability assigment it was decided to do the same, however because the ViT Trasformer is written by a google research team, this code was writtin for Tensorflow. Because for this reproducibility assigment it is expected to write the code with PyTorch, the github repository [^Vit_pytorch_implementation] was found. This repository was then used as the main help for this implementation. 
 
 When looking back to figure 1, the part that now will be implemented is the green block. 
 
@@ -152,7 +151,91 @@ class PatchEmbed(nn.Module):
 
 ```
 
-The next class that needs to be done is the transformer layer. This transformer layers will consist
+The next class that needs to be done is the transformer layer, this is thus the yellow block in the architecture overview. This transformer layers will consist out of two layer norms, and a multi-head self attention layer and the multilayer perception. First the multihead self attention class was written and can be seen here below. 
+
+``` python
+class Attention(nn.Module):
+   
+    def __init__(self, dim, n_heads=12, qkv_bias=True, attn_p=0., proj_p=0.):
+        super().__init__()
+        self.n_heads = n_heads 
+        self.dim = dim
+        self.head_dim = dim // n_heads
+        self.scale = self.head_dim ** -0.5
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_p)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_p)
+
+    def forward(self, x):
+       
+        n_samples, n_tokens, dim = x.shape
+
+        if dim != self.dim:
+            raise ValueError
+
+        qkv = self.qkv(x)  # (n_samples, n_patches + 1, 3 * dim)
+        qkv = qkv.reshape(
+                n_samples, n_tokens, 3, self.n_heads, self.head_dim
+        )  # (n_smaples, n_patches + 1, 3, n_heads, head_dim)
+        qkv = qkv.permute(
+                2, 0, 3, 1, 4
+        )  # (3, n_samples, n_heads, n_patches + 1, head_dim)
+
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        k_t = k.transpose(-2, -1)  # (n_samples, n_heads, head_dim, n_patches + 1)
+        dp = (
+           q @ k_t
+        ) * self.scale # (n_samples, n_heads, n_patches + 1, n_patches + 1)
+        attn = dp.softmax(dim=-1)  # (n_samples, n_heads, n_patches + 1, n_patches + 1)
+        attn = self.attn_drop(attn)
+
+        weighted_avg = attn @ v  # (n_samples, n_heads, n_patches +1, head_dim)
+        weighted_avg = weighted_avg.transpose(
+                1, 2
+        )  # (n_samples, n_patches + 1, n_heads, head_dim)
+        weighted_avg = weighted_avg.flatten(2)  # (n_samples, n_patches + 1, dim)
+
+        x = self.proj(weighted_avg)  # (n_samples, n_patches + 1, dim)
+        x = self.proj_drop(x)  # (n_samples, n_patches + 1, dim)
+
+        return x
+```
+
+And next the multilay perceptron was included, the class for this can also be seen here below. Something that should be noted that here one of the 
+
+``` python 
+class MLP(nn.Module):
+
+    def __init__(self, in_features, hidden_features, out_features, p=0.):
+        super().__init__()
+        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.act = nn.GELU()
+        self.fc2 = nn.Linear(hidden_features, out_features)
+        self.drop = nn.Dropout(p)
+
+    def forward(self, x):
+        """Run forward pass.
+        Parameters
+        ----------
+        x : torch.Tensor
+            Shape `(n_samples, n_patches + 1, in_features)`.
+        Returns
+        -------
+        torch.Tensor
+            Shape `(n_samples, n_patches +1, out_features)`
+        """
+        x = self.fc1(
+                x
+        ) # (n_samples, n_patches + 1, hidden_features)
+        x = self.act(x)  # (n_samples, n_patches + 1, hidden_features)
+        x = self.drop(x)  # (n_samples, n_patches + 1, hidden_features)
+        x = self.fc2(x)  # (n_samples, n_patches + 1, hidden_features)
+        x = self.drop(x)  # (n_samples, n_patches + 1, hidden_features)
+
+        return x
+```
 
 
 ## Final Reproduced TransUNet
@@ -283,3 +366,10 @@ Image Segmentation. arXiv:1505.04597
 
 [^pytorch_implementation_transformers] https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py 
 
+[^vit_transformer] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn,Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby∗, †Alexey Dosovitskiy, Lucas Beyer∗, Alexander Kolesnikov∗, Dirk Weissenborn∗, Xiaohua Zhai , Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby
+
+An Image Is Worth 16x16 Words: Transformers for Image Recognition at Scale
+
+https://arxiv.org/pdf/2010.11929.pdf
+
+[^Vit_pytorch_implementation] https://github.com/jankrepl/mildlyoverfitted/tree/master/github_adventures/vision_transformer
